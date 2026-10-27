@@ -1,0 +1,8 @@
+node_modules/
+test-results/
+release/
+src/art.js
+dist/SHA256SUMS
+*.log
+.DS_Store
+Thumbs.db

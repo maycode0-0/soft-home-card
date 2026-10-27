@@ -4,26 +4,30 @@
 
 **安装只需要一个文件：`dist/soft-home-card.js`。无需 button-card、Mushroom、card-mod、CDN 或额外图片文件。**
 
-## 安装
+## HACS 安装（推荐）
 
-1. 在 Home Assistant 的配置目录中创建 `www/soft-home-card/`。
-2. 把 `dist/soft-home-card.js` 放到 `/config/www/soft-home-card/soft-home-card.js`。如果使用随附安装包，直接把其中 `www/` 合并到 HA 的配置目录。
-3. 打开 **设置 → 仪表盘 → 右上角菜单 → 资源**，添加：
-   - URL：`/local/soft-home-card/soft-home-card.js?v=1.0.0`
-   - 类型：**JavaScript 模块**
-4. 刷新仪表盘，进入编辑模式 → 添加卡片，搜索 **Soft Home · 柔光设备卡片**。
-5. 在编辑器里选设备外观和主实体，保存即可。实体 ID 不需要提前批量整理。
+![设备卡片预览](docs/preview.png)
 
-如果“资源”入口未显示，先在个人资料中开启高级模式。第一次创建 `www` 目录后若 `/local/` 返回 404，重启 HA 后再访问。升级时替换 JS 文件并更新资源 URL 的版本查询参数；仍显示旧版时清除浏览器或 Companion App 的前端缓存。
+[GitHub 最新版本](https://github.com/maycode0-0/soft-home-card/releases/latest) · [自动检查](https://github.com/maycode0-0/soft-home-card/actions)
 
-如果仪表盘使用 YAML 资源管理，按自己的现有配置合并下面一项，不要覆盖已有资源：
+1. 打开 Home Assistant → HACS → 右上角菜单 → **自定义仓库**。
+2. 仓库填写 `https://github.com/maycode0-0/soft-home-card`，类型选择 **Dashboard（仪表盘）**。
+3. 搜索 **Soft Home · 柔光设备卡片**，下载最新版本。
+4. 检查“设置 → 仪表盘 → 资源”中是否已注册资源。若未自动添加，添加 URL `/hacsfiles/soft-home-card/soft-home-card.js`，类型为 **JavaScript 模块**。
+5. 刷新仪表盘，编辑 → 添加卡片，搜索 **Soft Home**，选择设备外观和实体后保存。
 
-```yaml
-lovelace:
-  resources:
-    - url: /local/soft-home-card/soft-home-card.js?v=1.0.0
-      type: module
-```
+从手动安装迁移时，先把原先 `/local/soft-home-card/soft-home-card.js` 的资源注册移除，保留 HACS 的资源注册。不要同时注册两个版本。原来的卡片配置和实体绑定可以保留。
+
+**以后更新：**在 HACS 中安装新版本，再刷新浏览器或 Companion App。更新后若仍显示旧版，清除前端缓存。使用 YAML 管理仪表盘资源时，需要自行把 URL 改成上面的 `/hacsfiles/` 路径。
+
+## 手动安装（可选）
+
+1. 从 [Releases](https://github.com/maycode0-0/soft-home-card/releases/latest) 下载 `soft-home-card.js`，或使用仓库的 `dist/soft-home-card.js`。
+2. 将文件放到 HA 配置目录的 `www/soft-home-card/soft-home-card.js`（常见完整路径为 `/config/www/soft-home-card/soft-home-card.js`）。
+3. 在仪表盘资源中添加 `/local/soft-home-card/soft-home-card.js?v=1.0.1`，类型选择 **JavaScript 模块**。
+4. 刷新后添加 Soft Home 卡片，在可视化编辑器里选择实体。
+
+若“资源”入口不可见，先在个人资料中开启高级模式。首次创建 `www` 目录后如出现 404，重启 HA 再访问。手动升级时替换 JS 并更新 URL 的版本参数。
 
 ## 在编辑器里配置
 
@@ -128,27 +132,43 @@ actions:
 
 ## 开发与验证
 
-Node.js 20+：
+需要 Node.js 22 和 npm。仓库已经包含全部源码、插画和锁文件，安装到 HA 的卡片没有运行时依赖。
 
 ```sh
+npm ci
 npm run build
+npm run check
 npm test
+npx playwright install chromium
+npm run test:browser
 npm run demo
 ```
 
-本地交互预览：`http://127.0.0.1:8124`。其中所有实体均为模拟数据，和实际安装的卡片逻辑隔离。测试浏览器需本地 Playwright 与 Chromium：
+本地预览地址为 `http://127.0.0.1:8124`，全部操作使用模拟实体。浏览器测试也可通过 `SOFT_HOME_PLAYWRIGHT` 指定本机 Playwright 模块，通过 `SOFT_HOME_CHROMIUM` 指定浏览器路径。
 
-```sh
-npm install --no-save playwright
-npx playwright install chromium
-npm run test:browser
-```
+- `src/`：卡片、可视化编辑器、数据和操作逻辑。
+- `assets/devices/`：19 个可编辑 SVG 插画，构建时嵌入 JS。
+- `dist/soft-home-card.js`：提交到仓库的 HACS 安装文件；修改源码后必须重新构建。
+- `demo/` 和 `test/`：交互预览、逻辑测试和浏览器测试。
+- `hacs.json`：HACS 安装元数据。
 
-也可通过 `SOFT_HOME_PLAYWRIGHT` 指定 Playwright 模块路径，通过 `SOFT_HOME_CHROMIUM` 指定已有 Chromium 路径。构建从仓库 `design/soft-device-cards/sources/` 提取批准的插画，去除固定演示读数，再打包为单文件。
+## 发布新版本
 
-已按 Home Assistant 官方自定义卡片接口实现 `setConfig`、`hass`、`getCardSize`、`getGridOptions`、`getConfigElement`、`getStubConfig`、`config-changed` 和 `hass-more-info`。验证使用 Node 单元测试和 Chromium 模拟 HA 会话；尚未在你的实际 HA 实例或设备上验证。
+1. 更新 `package.json` 版本，并运行 `npm install --package-lock-only` 同步锁文件。
+2. 在 `CHANGELOG.md` 添加对应版本说明；更新手动安装示例的版本参数。
+3. 运行 `npm run build && npm run check && npm test && npm run test:browser`。
+4. 将源码、版本信息、锁文件和 `dist/soft-home-card.js` 一起提交并推送。
+5. 创建与版本一致的标签，例如 `git tag v1.0.2`，再执行 `git push origin v1.0.2`。
+
+GitHub Actions 会重新构建并检查提交的 JS 是否一致，运行逻辑测试与 Chromium 交互测试。全部通过后才创建 GitHub Release，附上 `soft-home-card.js` 和 `SHA256SUMS`。HACS 根据 Release 显示更新。工作流只使用 GitHub 自带的 `GITHUB_TOKEN`，不需要配置个人令牌。
+
+CI 只对主分支和拉取请求运行检查；发布只由 `v*` 标签触发。GitHub Action 版本固定到提交 SHA，并由 Dependabot 提议更新。主分支也能在 HACS 中下载，日常安装推荐选择正式 Release。
+
+## 验证范围
+
+实现了 Home Assistant 自定义卡片接口 `setConfig`、`hass`、`getCardSize`、`getGridOptions`、`getConfigElement`、`getStubConfig`、`config-changed` 和 `hass-more-info`。测试使用模拟 HA 会话，并不等同于全部实体集成的实机测试。
 
 参考：
 - https://developers.home-assistant.io/docs/frontend/custom-ui/custom-card/
 - https://developers.home-assistant.io/docs/frontend/data/
-
+- https://www.hacs.xyz/docs/publish/plugin/

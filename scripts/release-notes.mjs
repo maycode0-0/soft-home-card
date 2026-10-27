@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {createHash} from 'node:crypto';
+import {fileURLToPath} from 'node:url';
+const root=path.resolve(fileURLToPath(new URL('..',import.meta.url)));
+const {version}=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
+const log=fs.readFileSync(path.join(root,'CHANGELOG.md'),'utf8');
+const section=log.split('## '+version+'\n')[1]?.split('\n## ')[0]?.trim();
+if(!section)throw new Error('Missing release notes');
+const bundle=fs.readFileSync(path.join(root,'dist/soft-home-card.js'));
+fs.writeFileSync(path.join(root,'dist/SHA256SUMS'),createHash('sha256').update(bundle).digest('hex')+'  soft-home-card.js\n');
+const notes=section+'\n\n## 安装与更新\n\n推荐通过 HACS 自定义仓库安装：仓库 https://github.com/maycode0-0/soft-home-card ，类型 Dashboard。已安装用户在 HACS 中更新后刷新仪表盘。\n\n手动安装可下载本版本的 soft-home-card.js，按 README 注册资源。\n';
+if(process.argv[2])fs.writeFileSync(process.argv[2],notes);else process.stdout.write(notes);

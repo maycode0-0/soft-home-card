@@ -1,0 +1,24 @@
+{
+  "name": "soft-home-card",
+  "version": "1.0.1",
+  "private": true,
+  "type": "module",
+  "description": "19 soft neumorphic device cards for Home Assistant",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/check.mjs",
+    "test": "node --test test/model.test.mjs",
+    "test:browser": "node test/browser.mjs",
+    "demo": "node scripts/serve.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maycode0-0/soft-home-card.git"
+  }
+}
