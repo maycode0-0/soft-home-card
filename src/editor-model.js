@@ -1,4 +1,6 @@
 import { DOMAIN } from './model.js';
+import { WASHER_FIELDS, detectWasherBindings } from './washer-fields.js';
+import { DEVICE_FIELDS, detectDeviceBindings } from './device-fields.js';
 
 const TYPE_MATCH = {
   washing_machine: /洗衣|洗烘|滚筒|波轮|washing[ _-]?machine|washer|laundry/i,
@@ -20,6 +22,8 @@ const TYPE_MATCH = {
   bathroom_mirror: /浴室镜|镜灯|镜前|bathroom[ _-]?mirror|mirror/i,
   temperature_humidity: /温湿度|温度|湿度|thermo|hygro|temperature|humidity/i,
   bathroom_heater: /浴霸|暖风机|bathroom[ _-]?heat|bath[ _-]?heat/i,
+  curtain:/窗帘|curtain|drape/i, door_lock:/门锁|smart[ _-]?lock|door[ _-]?lock/i,
+  vacuum:/扫地|扫拖|清洁机器人|vacuum|dreame|roborock/i, camera:/摄像|云台|camera|cctv/i,
 };
 const MAIN_DOMAINS = {
   washing_machine:['sensor','switch','select','binary_sensor'], dryer:['sensor','switch','select','binary_sensor'],
@@ -28,6 +32,7 @@ const MAIN_DOMAINS = {
   integrated_stove:['fan','switch','sensor'], water_heater:['water_heater','climate','switch','sensor'], floor_heating:['climate','switch','sensor'],
   wall_light:['light','switch'], spotlight:['light','switch'], downlight:['light','switch'], pendant_light:['light','switch'], led_strip:['light','switch'],
   tea_machine:['sensor','water_heater','number','switch'], bathroom_mirror:['light','switch'], temperature_humidity:['sensor'], bathroom_heater:['climate','fan','switch','sensor'],
+  curtain:['cover'],door_lock:['lock','sensor','binary_sensor'],vacuum:['vacuum','sensor'],camera:['camera'],
 };
 const registryMap=(value,key)=>Array.isArray(value)?Object.fromEntries(value.map(item=>[item[key],item])):value||{};
 export const normalizedSearch = value => String(value||'').normalize('NFKC').toLocaleLowerCase().trim();
@@ -79,6 +84,9 @@ export function mainEntityScore(hass,kind,id) {
     if(domain==='binary_sensor')score-=50;
   }
   if(kind==='temperature_humidity'&&(state?.attributes?.device_class==='temperature'||/温度|temperature/i.test(text)))score+=50;
+  if(kind==='door_lock'&&/锁状态|lock[_ ]?state/i.test(text))score+=70;
+  if(kind==='door_lock'&&domain==='lock')score+=100;
+  if(kind==='refrigerator'&&/冷藏|fridge/i.test(text))score+=30;
   return score;
 }
 export function entityOptions(hass,config,field) {
@@ -87,6 +95,8 @@ export function entityOptions(hass,config,field) {
   const role=field.startsWith('auxiliary.')?'auxiliary':field.startsWith('metrics.')?'metric':field;
   const eligible=id=>{
     const domain=DOMAIN(id);
+    if(field.startsWith('washer.'))return (WASHER_FIELDS[field.slice(7)]?.domains||['sensor','binary_sensor','select','number','switch','light','lock','input_boolean']).includes(domain);
+    if(field.startsWith('features.'))return !!DEVICE_FIELDS[config.device]?.[field.slice(9)]?.domains.includes(domain);
     if(role==='entity')return (MAIN_DOMAINS[config.device]||['sensor']).includes(domain);
     if(role==='auxiliary')return ['switch','light','fan','button','input_button','input_boolean','select','number','script','climate','cover'].includes(domain);
     if(['power_entity','progress_entity'].includes(role))return ['sensor','number','input_number'].includes(domain);
@@ -104,11 +114,13 @@ export function selectDeviceScope(hass,config,key) {
   else next.entity_group=group.key;
   const candidates=group.entityIds.filter(id=>mainEntityScore(hass,config.device,id)>-1000).sort((a,b)=>mainEntityScore(hass,config.device,b)-mainEntityScore(hass,config.device,a)||a.localeCompare(b));
   if(candidates.length&&mainEntityScore(hass,config.device,candidates[0])>=0)next.entity=candidates[0];
+  if(config.device==='washing_machine')Object.assign(next,detectWasherBindings(hass,group.entityIds));
+  Object.assign(next,detectDeviceBindings(hass,config.device,group.entityIds));
   return next;
 }
 export function clearEntityBindings(config) {
   const next={...config};
-  for(const key of ['device_id','entity_group','entity','primary_entity','primary_attribute','primary_label','primary_unit','secondary_entity','power_entity','progress_entity','auxiliary','metrics','actions','invert_position'])delete next[key];
+  for(const key of ['device_id','entity_group','entity','primary_entity','primary_attribute','primary_label','primary_unit','secondary_entity','power_entity','progress_entity','auxiliary','metrics','actions','invert_position','washer','features'])delete next[key];
   return next;
 }
 export function fieldLabels(kind) {
@@ -116,6 +128,6 @@ export function fieldLabels(kind) {
   if(['washing_machine','dryer'].includes(kind))return {primary:'剩余时间 / 主读数',secondary:'洗涤阶段 / 辅助读数',progress:true};
   if(kind==='temperature_humidity')return {primary:'温度传感器',secondary:'湿度传感器',progress:false};
   if(kind==='refrigerator')return {primary:'冷藏温度',secondary:'冷冻温度',progress:false};
-  if(['projector_lift','screen'].includes(kind))return {...labels,primary:'行程 / 主读数',progress:true};
+  if(['projector_lift','screen','curtain'].includes(kind))return {...labels,primary:'行程 / 主读数',progress:true};
   return labels;
 }

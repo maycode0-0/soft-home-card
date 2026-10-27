@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Soft Home · 洗衣机</title><style>
+*{box-sizing:border-box}body{margin:0;background:#e9eff8;color:#23334c;font:14px "Microsoft YaHei",system-ui,sans-serif}header{max-width:930px;margin:auto;padding:46px 28px 28px}header small{font-size:10px;letter-spacing:2px;color:#52739b}h1{font-size:28px;letter-spacing:1px;margin:12px 0}p{font-size:12px;line-height:1.8;color:#61748d}nav{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}nav button{font:inherit;font-size:12px;min-height:40px;padding:8px 16px;border-radius:20px;background:transparent;border:1px solid #bfcede;color:#425b79;cursor:pointer}nav button[aria-pressed=true]{background:#233e60;border-color:#233e60;color:white}button:focus-visible{outline:2px solid #3f86df;outline-offset:3px}main{max-width:930px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:28px;margin:auto;padding:0 28px 40px}.theme-label{display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:1.5px;color:#61748d;padding:0 4px;margin-bottom:12px}.theme-label:before{content:"";width:6px;height:6px;border-radius:50%;background:#8ca6c7}#log{max-width:874px;margin:0 auto 24px;padding:0 28px;color:#61748d;font-size:12px;min-height:20px}@media(max-width:680px){header{padding:28px 18px 24px}main{grid-template-columns:1fr;max-width:460px;padding:0 14px 28px;gap:28px}h1{font-size:24px}}
+</style></head><body><header><small>SOFT HOME / LAUNDRY</small><h1>洗护状态，一目了然。</h1><p>程序、进度与常用操作集中呈现，更多设置按需展开。<br>交互演示使用模拟数据，不连接真实设备。</p><nav aria-label="预览设备状态"><button data-scene="running" aria-pressed="true">运行中</button><button data-scene="idle" aria-pressed="false">待机</button><button data-scene="offline" aria-pressed="false">离线</button><button data-scene="alert" aria-pressed="false">告警</button></nav></header><main><section><div class="theme-label">LIGHT / 浅蓝白</div><soft-home-card id="light"></soft-home-card></section><section><div class="theme-label">DARK / 深色</div><soft-home-card id="dark"></soft-home-card></section></main><div id="log" role="status"></div>
+<script src="../dist/soft-home-card.js"></script><script type="module">
+import {createMock,DEMO_CONFIGS,state} from './mock.js';
+import './icons.js';
+window.mock=createMock();window.cards=[document.querySelector('#light'),document.querySelector('#dark')];
+cards.forEach((card,i)=>{card.setConfig({...DEMO_CONFIGS[0],theme:i?'dark':'light'});card.hass=mock;});
+mock.notify=()=>cards.forEach(card=>card.hass={...mock});
+const saved={...mock.states};
+document.querySelectorAll('[data-scene]').forEach(button=>button.onclick=()=>{
+  document.querySelectorAll('[data-scene]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));
+  mock.states={...saved};const scene=button.dataset.scene;
+  const update=(id,value)=>mock.states[id]=state(id,value,saved[id].attributes);
+  if(scene==='idle'){update('sensor.washer','idle');update('sensor.washer_phase','待机中');update('sensor.remaining','unknown');update('sensor.progress','unknown');update('select.washer_program','unknown');update('switch.washer_start_pause','off');update('switch.washer_power','off');update('lock.washer_child_lock','unlocked');update('sensor.washer_water_usage',0);update('sensor.washer_energy_consumption',0);update('sensor.power',0);update('sensor.washer_wash_time',0);update('sensor.washer_spin_time',0);}
+  if(scene==='offline')mock.states=Object.fromEntries(Object.entries(saved).map(([id,s])=>[id,state(id,'unavailable',s.attributes)]));
+  if(scene==='alert'){update('binary_sensor.washer_overheat','on');update('sensor.washer_error_code','E21');update('sensor.washer','paused');update('sensor.washer_phase','paused');update('switch.washer_start_pause','off');}
+  mock.notify();document.querySelector('#log').textContent='';
+});
+document.addEventListener('hass-more-info',event=>document.querySelector('#log').textContent='查看实体：'+event.detail.entityId+' · 在 Home Assistant 中会打开原生详情面板。');
+</script></body></html>

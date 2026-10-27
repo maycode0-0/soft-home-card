@@ -1,3 +1,6 @@
+import { WASHER_FIELDS } from './washer-fields.js';
+import { DEVICE_FIELDS } from './device-fields.js';
+
 export const DEVICES = {
   washing_machine: ['洗衣机','mdi:washing-machine','blue'], dryer: ['烘干机','mdi:tumble-dryer','warm'],
   projector: ['投影仪','mdi:projector','blue'], projector_lift: ['投影仪升降支架','mdi:arrow-expand-vertical','blue'],
@@ -9,6 +12,8 @@ export const DEVICES = {
   led_strip: ['灯带','mdi:led-strip-variant','blue'], tea_machine: ['茶吧机','mdi:kettle-outline','warm'],
   bathroom_mirror: ['浴室镜','mdi:mirror-rectangle','blue'], temperature_humidity: ['温湿度计','mdi:thermometer-water','blue'],
   bathroom_heater: ['浴霸','mdi:fan','warm'],
+  curtain: ['窗帘','mdi:curtains','blue'], door_lock: ['门锁','mdi:lock-outline','blue'],
+  vacuum: ['扫地机器人','mdi:robot-vacuum','blue'], camera: ['摄像头','mdi:cctv','blue'],
 };
 export const DOMAIN = id => String(id || '').split('.')[0];
 export const clamp = (value,min,max) => Math.min(max,Math.max(min,value));
@@ -26,6 +31,17 @@ export function validateConfig(config) {
   const c = {theme:'light',show_stats:true,read_only:false,...config};
   if (!['light','dark','auto'].includes(c.theme)) throw new Error('theme 必须为 light、dark 或 auto。');
   if (c.accent && !['blue','warm'].includes(c.accent)) throw new Error('accent 必须为 blue 或 warm。');
+  if(c.washer!=null){
+    if(typeof c.washer!=='object'||Array.isArray(c.washer))throw new Error('washer 必须为实体绑定对象。');
+    for(const [key,id] of Object.entries(c.washer))if(!Object.hasOwn(WASHER_FIELDS,key)||typeof id!=='string'||!entityPattern.test(id))throw new Error(`washer.${key} 不是有效的洗衣机实体绑定。`);
+  }
+  if(c.features!=null){
+    if(typeof c.features!=='object'||Array.isArray(c.features))throw new Error('features 必须为设备功能实体绑定对象。');
+    for(const [key,id] of Object.entries(c.features)){
+      const field=DEVICE_FIELDS[c.device]?.[key];
+      if(!field||typeof id!=='string'||!entityPattern.test(id)||!field.domains.includes(DOMAIN(id)))throw new Error(`features.${key} 不是有效的设备功能绑定。`);
+    }
+  }
   for (const field of ['primary_entity','secondary_entity','power_entity','progress_entity']) {
     if (c[field] && !entityPattern.test(c[field])) throw new Error(`${field} 不是有效实体 ID。`);
   }
@@ -50,6 +66,8 @@ export function validateConfig(config) {
 export function formattedState(hass,state) {
   if (!state) return '实体未找到';
   if (stateLabels[state.state]) return stateLabels[state.state];
+  const deviceLabels={locked:'已上锁',unlocked:'未上锁',locking:'正在上锁',unlocking:'正在解锁',jammed:'锁体卡住',cleaning:'清洁中',docked:'已回充',returning:'回充中',error:'故障',recording:'录像中',streaming:'预览中',detected:'已检测到'};
+  if(deviceLabels[state.state])return deviceLabels[state.state];
   try { return hass.formatEntityState?.(state) || String(state.state); } catch { return String(state.state); }
 }
 
@@ -118,15 +136,19 @@ export function capabilities(hass,c,state) {
     if (max === null && number(a.min_mireds)>0) max=Math.round(1e6/a.min_mireds);
     if (value === null && number(a.color_temp)>0) value=Math.round(1e6/a.color_temp);
     if (modes.includes('color_temp') && min !== null && max > min && can('turn_on')) caps.controls.push({id:'color_temperature',kind:'range',label:'色温',min,max,step:1,value:clamp(value??min,min,max),unit:'K',service:'turn_on'});
+    if(modes.some(mode=>['hs','rgb','rgbw','rgbww','xy'].includes(mode))&&can('turn_on'))caps.controls.push({id:'color',kind:'color',label:'灯光颜色',value:Array.isArray(a.rgb_color)?'#'+a.rgb_color.slice(0,3).map(n=>clamp(Math.round(n),0,255).toString(16).padStart(2,'0')).join(''):'#ffffff',service:'turn_on'});
   }
   if (['climate','water_heater'].includes(domain)) {
     const min=number(a.min_temp),max=number(a.max_temp),value=number(a.temperature),step=number(a.target_temp_step) || (hass?.config?.unit_system?.temperature==='°F'?1:.5);
     if (feature(state,1) && min!==null && max>min && value!==null && can('set_temperature')) caps.controls.push({id:'temperature',kind:'stepper',label:'设定温度',min,max,step,value,unit:hass?.config?.unit_system?.temperature||'°C',service:'set_temperature'});
     const options=domain==='climate'?a.hvac_modes:a.operation_list,service=domain==='climate'?'set_hvac_mode':'set_operation_mode';
     if (Array.isArray(options) && options.length && can(service)) caps.controls.push({id:'mode',kind:'select',label:'运行模式',options,value:domain==='climate'?state.state:a.operation_mode,service});
+    if(domain==='climate')for(const [id,attribute,service,label,bit] of [['fan_mode','fan_modes','set_fan_mode','风速',8],['swing_mode','swing_modes','set_swing_mode','摆风',32]]){
+      if(feature(state,bit)&&Array.isArray(a[attribute])&&a[attribute].length&&can(service))caps.controls.push({id,kind:'select',label,options:a[attribute],value:a[id],service});
+    }
   }
   if (domain === 'cover') {
-    const buttons=[['open',1,'open_cover','↑ 上升'],['stop',8,'stop_cover','Ⅱ 停止'],['close',2,'close_cover','↓ 下降']].filter(([,bit,s])=>feature(state,bit)&&can(s)).map(([id,,service,label])=>({id,service,label}));
+    const buttons=[['open',1,'open_cover',c.device==='curtain'?'打开窗帘':'↑ 上升'],['stop',8,'stop_cover','Ⅱ 停止'],['close',2,'close_cover',c.device==='curtain'?'关闭窗帘':'↓ 下降']].filter(([,bit,s])=>feature(state,bit)&&can(s)).map(([id,,service,label])=>({id,service,label}));
     if (buttons.length) caps.controls.push({id:'motion',kind:'buttons',buttons});
     if (feature(state,4) && can('set_cover_position') && number(a.current_position)!==null) caps.controls.push({id:'position',kind:'range',label:c.invert_position?'展开程度':'开启程度',min:0,max:100,step:1,value:c.invert_position?100-a.current_position:a.current_position,unit:'%',service:'set_cover_position'});
   }
@@ -135,6 +157,15 @@ export function capabilities(hass,c,state) {
   if (['number','input_number'].includes(domain) && can('set_value') && number(state.state)!==null && number(a.min)!==null && number(a.max)>number(a.min)) caps.controls.push({id:'number',kind:'range',label:'设定值',min:Number(a.min),max:Number(a.max),step:number(a.step)||1,value:Number(state.state),unit:a.unit_of_measurement||'',service:'set_value'});
   if (['select','input_select'].includes(domain) && Array.isArray(a.options) && can('select_option')) caps.controls.push({id:'option',kind:'select',label:'选项',options:a.options,value:state.state,service:'select_option'});
   if (['button','input_button'].includes(domain) && can('press')) caps.controls.push({id:'press',kind:'buttons',buttons:[{id:'press',service:'press',label:'执行'}]});
+  if(domain==='vacuum'){
+    const buttons=[['start',8192,'start','开始清洁'],['pause',4,'pause','暂停清洁'],['return_home',16,'return_to_base','返回充电'],['stop',8,'stop','停止清洁'],['locate',512,'locate','寻找机器']].filter(([,bit,s])=>feature(state,bit)&&can(s)).map(([id,,service,label])=>({id,service,label}));
+    if(buttons.length)caps.controls.push({id:'vacuum_actions',kind:'buttons',buttons});
+    if(feature(state,32)&&Array.isArray(a.fan_speed_list)&&can('set_fan_speed'))caps.controls.push({id:'fan_speed',kind:'select',label:'吸力',options:a.fan_speed_list,value:a.fan_speed,service:'set_fan_speed'});
+  }
+  if(domain==='lock'){
+    const buttons=[['lock','lock','上锁'],['unlock','unlock','解锁']].filter(([id,service])=>can(service)&&!a.code_format&&!(id==='unlock'&&state.state==='unlocked')&&!(id==='lock'&&state.state==='locked')).map(([id,service,label])=>({id,service,label}));
+    if(buttons.length)caps.controls.push({id:'lock_actions',kind:'buttons',buttons});
+  }
   return caps;
 }
 
@@ -183,9 +214,12 @@ export function commandFor(hass,c,id,input) {
     if(button)service=button.service;
     else if(control){
       service=control.service;
-      if(control.kind==='select'){
+      if(control.kind==='color'){
+        if(typeof input!=='string'||!/^#[0-9a-f]{6}$/i.test(input))throw new Error('无效颜色。');
+        data={rgb_color:[1,3,5].map(offset=>parseInt(input.slice(offset,offset+2),16))};
+      }else if(control.kind==='select'){
         if(!control.options.includes(input))throw new Error('不支持该选项。');
-        data={[id==='mode'?(caps.domain==='climate'?'hvac_mode':'operation_mode'):'option']:input};
+        data={[id==='mode'?(caps.domain==='climate'?'hvac_mode':'operation_mode'):['fan_mode','swing_mode','fan_speed'].includes(id)?id:'option']:input};
       }else{
         const raw=number(input);if(raw===null)throw new Error('无效数值。');
         const step=control.step || 1;
@@ -201,7 +235,7 @@ export function commandFor(hass,c,id,input) {
     }
   }
   if(!service)throw new Error('设备不支持该操作。');
-  return {domain:caps.domain,service,data,target:{entity_id:c.entity}};
+  return {domain:caps.domain,service,data,target:{entity_id:c.entity},...(caps.domain==='lock'&&id==='unlock'?{confirmation:'确认解锁门锁？'}:{})};
 }
 
 export function auxiliaryCommand(hass,c,index) {

@@ -13,7 +13,7 @@ for(const name of Object.keys(DEVICES)){
 }
 const generated='// Generated from assets/devices. Do not edit by hand.\nexport const ART = '+JSON.stringify(art)+';\n';
 fs.writeFileSync(path.join(root,'src/art.js'),generated);
-const parts=['art.js','model.js','styles.js','editor-model.js','picker.js','editor.js','card.js'].map(name=>fs.readFileSync(path.join(root,'src',name),'utf8').replace(/\r\n/g,'\n').replace(/^import .*?;\n/gm,'').replace(/^export /gm,''));
+const parts=['art.js','washer-fields.js','device-fields.js','model.js','washer.js','devices.js','device-layouts.js','styles.js','washer-styles.js','device-styles.js','editor-model.js','picker.js','editor.js','card.js'].map(name=>fs.readFileSync(path.join(root,'src',name),'utf8').replace(/\r\n/g,'\n').replace(/^import .*?;\n/gm,'').replace(/^export /gm,''));
 const output='/* Soft Home Card v'+pkg.version+' | No runtime dependencies | Local SVG artwork */\n(() => {\n'+"'use strict';\n"+parts.join('\n')+'\n})();\n';
 fs.mkdirSync(path.join(root,'dist'),{recursive:true});
 fs.writeFileSync(path.join(root,'dist/soft-home-card.js'),output);

@@ -1,10 +1,46 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {validateConfig,buildView,commandFor,auxiliaryCommand,actionCommand,capabilities,number,escapeHTML} from '../src/model.js';
+import {washerView,washerCommand} from '../src/washer.js';
+import {createMock,DEMO_CONFIGS} from '../demo/mock.js';
 const state=(id,value,attributes={})=>({entity_id:id,state:value,attributes});
 const hass=(states,services={})=>({states,services,connected:true,config:{unit_system:{temperature:'°C'}}});
 const cfg=(device,entity,rest={})=>validateConfig({device,entity,...rest});
 const services={light:{turn_on:{},turn_off:{}},cover:{open_cover:{},close_cover:{},stop_cover:{},set_cover_position:{}},climate:{set_temperature:{},set_hvac_mode:{},turn_on:{},turn_off:{}},media_player:{volume_set:{}},water_heater:{set_temperature:{},set_operation_mode:{}},switch:{turn_on:{},turn_off:{}},button:{press:{}},script:{turn_on:{}}};
+
+test('washer controls use bound entities and recheck availability, services and read-only at click time',()=>{
+  const h=createMock(),c=validateConfig(DEMO_CONFIGS[0]);
+  assert.deepEqual(washerCommand(h,c,'start'),{domain:'switch',service:'turn_off',data:{},target:{entity_id:'switch.washer_start_pause'}});
+  h.states['switch.washer_start_pause'].state='off';
+  assert.equal(washerCommand(h,c,'start').service,'turn_on');
+  assert.equal(washerCommand(h,c,'power').target.entity_id,'switch.washer_power');
+  assert.throws(()=>washerCommand(h,{...c,read_only:true},'start'));
+  h.connected=false;assert.throws(()=>washerCommand(h,c,'start'));h.connected=true;
+  h.states['switch.washer_start_pause'].state='unavailable';assert.throws(()=>washerCommand(h,c,'start'));
+  delete h.services.switch.turn_off;
+  assert.equal(washerView(h,c,buildView(h,c)).controls.find(x=>x.key==='power').disabled,true);
+});
+
+test('washer distinguishes unknown values, zero usage, safety states and real progress',()=>{
+  const h=createMock(),c=validateConfig(DEMO_CONFIGS[0]),view=()=>washerView(h,c,buildView(h,c));
+  h.states['sensor.washer_energy_consumption'].state='0';
+  h.states['select.washer_program'].state='unknown';
+  h.states['sensor.progress'].state='unknown';
+  let w=view();assert.equal(w.progress,null);assert.equal(w.fields.program.valid,false);assert.equal(w.fields.energy.text,'0');
+  assert.equal(w.fields.door.text,'已关闭');assert.equal(w.fields.child_lock.text,'已锁定');assert.equal(w.fields.error.text,'无故障');
+  h.states['sensor.washer_error_code'].state='E21';h.states['binary_sensor.washer_overheat'].state='on';
+  assert.deepEqual(view().alerts.map(x=>x.key),['overheat','error']);
+  h.states['sensor.progress'].state='0';assert.equal(view().progress,0);
+  h.connected=false;w=view();assert.equal(w.progress,null);assert.ok(Object.values(w.fields).every(f=>f.text==='—'&&!f.valid));
+  assert.ok(w.controls.every(control=>control.disabled));assert.equal(w.alerts.length,0);
+});
+
+test('washer config validates bindings and preserves legacy optional controls',()=>{
+  for(const washer of [[],true,'sensor.test',{power:'bad'},{unexpected:'sensor.test'},{power:42}])assert.throws(()=>cfg('washing_machine','sensor.test',{washer}));
+  const h=createMock(),c=cfg('washing_machine','sensor.washer',{auxiliary:[{entity:'button.wash_start'}]});
+  assert.equal(washerView(h,c,buildView(h,c)).controls.length,0);
+  assert.equal(auxiliaryCommand(h,c,0).service,'press');
+});
 
 test('reject malformed config, preserve optional UI settings',()=>{
   assert.throws(()=>validateConfig({device:'missing',entity:'light.test'}));

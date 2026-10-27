@@ -1,9 +1,12 @@
+import { FEATURE_DEMO_BINDINGS, addDeviceFixtures } from './device-fixtures.js';
 export const state=(id,value,attributes={})=>({entity_id:id,state:String(value),attributes,last_changed:new Date().toISOString(),last_updated:new Date().toISOString()});
 const light=(name,brightness=204)=>({friendly_name:name,brightness,supported_color_modes:['color_temp'],color_mode:'color_temp',color_temp_kelvin:3000,min_color_temp_kelvin:2700,max_color_temp_kelvin:6500});
 const climate=(name,temperature=26)=>({friendly_name:name,supported_features:385,temperature,current_temperature:24.6,min_temp:16,max_temp:32,target_temp_step:.5,hvac_modes:['off','cool','heat','auto','dry'],hvac_action:'cooling'});
+export const WASHER_DEMO_BINDINGS={program:'select.washer_program',phase:'sensor.washer_phase',temperature:'select.washer_temperature',spin_speed:'select.washer_spin_speed',rinse:'number.washer_rinse_count',mode:'select.washer_wash_mode',water_level:'select.washer_water_level',detergent:'select.washer_detergent_dose',stain:'select.washer_stain',drying:'select.washer_drying',anti_crease:'switch.washer_anti_crease',night:'switch.washer_night_mode',care:'switch.washer_fresh_care',memory:'switch.washer_memory',drum_light:'switch.washer_drum_light',door:'binary_sensor.washer_door',child_lock:'lock.washer_child_lock',detergent_status:'binary_sensor.washer_detergent_status',overheat:'binary_sensor.washer_overheat',error:'sensor.washer_error_code',water_usage:'sensor.washer_water_usage',energy:'sensor.washer_energy_consumption',wash_time:'sensor.washer_wash_time',spin_time:'sensor.washer_spin_time',power:'switch.washer_power',start:'switch.washer_start_pause'};
+const washerDemoValues={program:['棉麻洗','洗涤程序'],phase:['漂洗中','当前进程'],temperature:[30,'温度设定','°C'],spin_speed:[800,'脱水转速','转/分'],rinse:[2,'漂洗次数','次'],mode:['正常','模式'],water_level:['自动','水位'],detergent:['智能','洗衣液(智投)'],stain:['关闭','特渍类型'],drying:['关闭','烘干'],anti_crease:['off','智能抖散'],night:['off','夜间模式'],care:['on','忘取无忧'],memory:['off','程序记忆'],drum_light:['off','筒灯状态'],door:['off','门状态'],child_lock:['locked','童锁'],detergent_status:['off','洗涤剂状态'],overheat:['off','桶内水温过高'],error:[0,'错误代码'],water_usage:[32.6,'本次用水量','L'],energy:[0.284,'本次耗电量','kWh'],wash_time:[38,'洗涤时间','分钟'],spin_time:[8,'脱水时间','分钟'],power:['on','电源'],start:['on','启停开关']};
 export function createMock(){
   const states={
-    'sensor.washer':state('sensor.washer','洗涤中',{friendly_name:'阳台洗衣机运行状态'}),
+    'sensor.washer':state('sensor.washer','运行中',{friendly_name:'阳台洗衣机运行状态'}),
     'sensor.remaining':state('sensor.remaining',27,{unit_of_measurement:'min',friendly_name:'剩余时间'}),
     'sensor.progress':state('sensor.progress',72,{friendly_name:'洗涤进度',unit_of_measurement:'%'}),
     'sensor.power':state('sensor.power',1870,{unit_of_measurement:'W',friendly_name:'功率'}),
@@ -33,7 +36,12 @@ export function createMock(){
     'climate.bath':state('climate.bath','heat',{...climate('浴室暖风',28),hvac_action:'heating',hvac_modes:['off','heat','fan_only']}),
     'switch.vent':state('switch.vent','off',{friendly_name:'换气'}),
   };
-  const definitions={light:['turn_on','turn_off'],cover:['open_cover','close_cover','stop_cover','set_cover_position'],climate:['set_temperature','set_hvac_mode','turn_on','turn_off'],water_heater:['set_temperature','set_operation_mode'],fan:['turn_on','turn_off','set_percentage'],media_player:['turn_on','turn_off','volume_set'],button:['press'],switch:['turn_on','turn_off'],script:['turn_on']};
+  for(const [key,id] of Object.entries(WASHER_DEMO_BINDINGS)){
+    const [value,name,unit]=washerDemoValues[key];
+    states[id]=state(id,value,{friendly_name:'滚筒洗衣机 '+name,...(unit?{unit_of_measurement:unit}:{}),...(id.startsWith('select.')?{options:[String(value)]}:{})});
+  }
+  addDeviceFixtures(states);
+  const definitions={light:['turn_on','turn_off'],cover:['open_cover','close_cover','stop_cover','set_cover_position'],climate:['set_temperature','set_hvac_mode','turn_on','turn_off'],water_heater:['set_temperature','set_operation_mode'],fan:['turn_on','turn_off','set_percentage'],media_player:['turn_on','turn_off','volume_set'],button:['press'],switch:['turn_on','turn_off'],script:['turn_on'],vacuum:['start','pause','stop','return_to_base','locate','set_fan_speed'],lock:['lock','unlock']};
   const mock={states,services:Object.fromEntries(Object.entries(definitions).map(([d,list])=>[d,Object.fromEntries(list.map(s=>[s,{}]))])),config:{unit_system:{temperature:'°C'}},themes:{darkMode:false},connected:true,calls:[],rejectNext:false,
     formatEntityState:s=>String(s.state),
     async callService(domain,service,data,target){
@@ -44,37 +52,43 @@ export function createMock(){
       if(service==='turn_on')value='on';if(service==='turn_off')value='off';
       if(data.brightness_pct!==undefined)attributes.brightness=Math.round(data.brightness_pct/100*255);
       if(data.color_temp_kelvin!==undefined)attributes.color_temp_kelvin=data.color_temp_kelvin;
+      if(data.rgb_color!==undefined)attributes.rgb_color=data.rgb_color;
       if(data.temperature!==undefined)attributes.temperature=data.temperature;
       if(data.volume_level!==undefined)attributes.volume_level=data.volume_level;
       if(data.percentage!==undefined)attributes.percentage=data.percentage;
       if(data.position!==undefined){attributes.current_position=data.position;value=data.position===0?'closed':'open';}
       if(data.hvac_mode!==undefined)value=data.hvac_mode;
       if(data.operation_mode!==undefined){attributes.operation_mode=data.operation_mode;value=data.operation_mode;}
+      if(domain==='lock'&&['lock','unlock'].includes(service))value=service==='lock'?'locked':'unlocked';
+      if(domain==='vacuum'){if(service==='start')value='cleaning';if(service==='pause')value='paused';if(service==='return_to_base')value='returning';if(service==='stop')value='idle';if(data.fan_speed)attributes.fan_speed=data.fan_speed;}
       if(service==='open_cover')value='opening';if(service==='close_cover')value='closing';if(service==='stop_cover')value=attributes.current_position===0?'closed':'open';
       this.states={...this.states,[id]:state(id,value,attributes)};this.notify?.();
+      if(id===WASHER_DEMO_BINDINGS.start){this.states={...this.states,'sensor.washer':state('sensor.washer',value==='on'?'运行中':'paused',{friendly_name:'阳台洗衣机运行状态'}),'sensor.washer_phase':state('sensor.washer_phase',value==='on'?'漂洗中':'paused',{friendly_name:'当前进程'})};this.notify?.();}
     }};
   mock.entities={};mock.devices={};
   for(const c of DEMO_CONFIGS){
     const id=`demo_${c.device}`;
     mock.devices[id]={id,name:states[c.entity].attributes.friendly_name,manufacturer:'Soft Home Demo',model:c.device};
-    const ids=[c.entity,c.primary_entity,c.secondary_entity,c.power_entity,c.progress_entity,...(c.auxiliary||[]).map(x=>x.entity)].filter(Boolean);
+    const ids=[c.entity,c.primary_entity,c.secondary_entity,c.power_entity,c.progress_entity,...Object.values(c.washer||{}),...Object.values(c.features||{}),...(c.auxiliary||[]).map(x=>x.entity)].filter(Boolean);
     for(const entity_id of ids)mock.entities[entity_id]={entity_id,device_id:id};
   }
+  mock.entities['button.wash_start']={entity_id:'button.wash_start',device_id:'demo_washing_machine'};
   mock.devices.washer_two={id:'washer_two',name:'次卧洗衣机',manufacturer:'Soft Home Demo',model:'Mini'};
   for(const [entity_id,value,friendly_name] of [['sensor.washer_two','idle','运行状态'],['sensor.remaining_two',0,'剩余时间']]){
     states[entity_id]=state(entity_id,value,{friendly_name});mock.entities[entity_id]={entity_id,device_id:'washer_two'};
   }
   mock.callService=mock.callService.bind(mock);
+  mock.callApi=async()=>[[0,1,2,3].map((i)=>({state:['内开','指纹 · 家人','内开','密码开锁'][i],last_changed:new Date(Date.now()-i*3600000).toISOString()})).reverse()];
   return mock;
 }
 export const DEMO_CONFIGS=[
-  {device:'washing_machine',entity:'sensor.washer',room:'阳台 · 洗护',primary_entity:'sensor.remaining',primary_label:'剩余时间',progress_entity:'sensor.progress',power_entity:'sensor.power',auxiliary:[{entity:'button.wash_start',name:'开始洗衣'}]},
+  {device:'washing_machine',entity:'sensor.washer',room:'阳台 · 衣物护理',primary_entity:'sensor.remaining',primary_label:'剩余时间',progress_entity:'sensor.progress',power_entity:'sensor.power',washer:WASHER_DEMO_BINDINGS},
   {device:'dryer',entity:'sensor.dryer',room:'阳台 · 洗护',primary_entity:'sensor.dryer_remaining',primary_label:'剩余时间'},
   {device:'projector',entity:'media_player.projector',room:'客厅 · 影音'},
   {device:'projector_lift',entity:'cover.lift',room:'客厅 · 影音',invert_position:true},
   {device:'screen',entity:'cover.screen',room:'客厅 · 影音',invert_position:true},
-  {device:'air_conditioner',entity:'climate.ac',room:'客厅 · 温控'},
-  {device:'refrigerator',entity:'sensor.fridge',room:'厨房 · 保鲜',secondary_entity:'sensor.freezer'},
+  {device:'air_conditioner',entity:'climate.ac',room:'客厅 · 温控',features:FEATURE_DEMO_BINDINGS.air_conditioner},
+  {device:'refrigerator',entity:'sensor.fridge',room:'厨房 · 保鲜',secondary_entity:'sensor.freezer',features:FEATURE_DEMO_BINDINGS.refrigerator},
   {device:'integrated_stove',entity:'fan.stove',room:'厨房 · 烹饪'},
   {device:'water_heater',entity:'water_heater.bath',room:'浴室 · 热水'},
   {device:'floor_heating',entity:'climate.floor',room:'客厅 · 温控'},
@@ -85,6 +99,10 @@ export const DEMO_CONFIGS=[
   {device:'led_strip',entity:'light.strip',room:'客厅 · 氛围'},
   {device:'tea_machine',entity:'sensor.tea',room:'餐厅 · 饮水',auxiliary:[{entity:'button.tea',name:'取水'}]},
   {device:'bathroom_mirror',entity:'light.mirror',room:'浴室 · 镜前',auxiliary:[{entity:'switch.defog',name:'除雾'}]},
-  {device:'temperature_humidity',entity:'sensor.temperature',room:'卧室 · 环境',secondary_entity:'sensor.humidity'},
+  {device:'temperature_humidity',entity:'sensor.temperature',room:'卧室 · 环境',secondary_entity:'sensor.humidity',features:FEATURE_DEMO_BINDINGS.temperature_humidity},
   {device:'bathroom_heater',entity:'climate.bath',room:'浴室 · 温控',auxiliary:[{entity:'switch.vent',name:'换气'}]},
+  {device:'curtain',entity:'cover.curtain',room:'客厅 · 光影'},
+  {device:'door_lock',entity:'lock.front_door',room:'玄关 · 全屋守护',features:FEATURE_DEMO_BINDINGS.door_lock},
+  {device:'vacuum',entity:'vacuum.robot',room:'客厅 · 地面清洁',features:FEATURE_DEMO_BINDINGS.vacuum},
+  {device:'camera',entity:'camera.balcony',room:'生活阳台 · 安防',features:FEATURE_DEMO_BINDINGS.camera},
 ];

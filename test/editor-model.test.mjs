@@ -3,6 +3,21 @@ import assert from 'node:assert/strict';
 import {createMock,state} from '../demo/mock.js';
 import {DEVICES,validateConfig} from '../src/model.js';
 import {deviceGroups,entityScope,entityOptions,selectDeviceScope,clearEntityBindings,searchItems} from '../src/editor-model.js';
+import {detectWasherBindings} from '../src/washer-fields.js';
+
+test('washer bindings match the selected device, skip ambiguity and clear on device changes',()=>{
+  const h=createMock(),c=selectDeviceScope(h,{device:'washing_machine'},'device:demo_washing_machine');
+  assert.equal(c.washer.temperature,'select.washer_temperature');assert.equal(c.washer.overheat,'binary_sensor.washer_overheat');
+  assert.equal(c.washer.program,'select.washer_program');assert.equal(c.washer.memory,'switch.washer_memory');
+  assert.equal(c.washer.power,'switch.washer_power');assert.equal(c.washer.start,undefined,'two possible start controls require explicit choice');
+  assert.equal(c.primary_entity,'sensor.remaining');assert.equal(c.progress_entity,'sensor.progress');
+  assert.ok(Object.values(c.washer).every(id=>h.entities[id].device_id===c.device_id));
+  assert.ok(entityOptions(h,c,'washer.child_lock').some(x=>x.value==='lock.washer_child_lock'));
+  assert.ok(entityOptions(h,c,'washer.power').every(x=>x.value.startsWith('switch.')));
+  const second=selectDeviceScope(h,c,'device:washer_two');assert.equal(second.washer,undefined);assert.equal(second.primary_entity,'sensor.remaining_two');
+  assert.equal(clearEntityBindings(c).washer,undefined);
+  assert.equal(detectWasherBindings(h,['switch.washer_start_pause']).washer.start,'switch.washer_start_pause');
+});
 
 test('type discovery and physical device grouping isolate two washers and unrelated lights',()=>{
   const h=createMock(),groups=deviceGroups(h,'washing_machine');
@@ -13,9 +28,9 @@ test('type discovery and physical device grouping isolate two washers and unrela
     assert.ok(entityOptions(h,c,field).every(x=>h.entities[x.value].device_id===c.device_id));
   }
   assert.ok(entityOptions(h,c,'primary_entity').some(x=>x.value==='sensor.remaining'),'generic names remain associated by registry');
-  assert.deepEqual(entityOptions(h,c,'auxiliary.0.entity').map(x=>x.value),['button.wash_start']);
+  assert.ok(entityOptions(h,c,'auxiliary.0.entity').some(x=>x.value==='button.wash_start'));
 });
-test('all 19 device categories find their matching demo device',()=>{
+test('all 23 device categories find their matching demo device',()=>{
   const h=createMock();
   for(const kind of Object.keys(DEVICES))assert.ok(deviceGroups(h,kind).some(g=>g.deviceId===`demo_${kind}`),kind);
 });
