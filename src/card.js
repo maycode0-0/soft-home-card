@@ -21,7 +21,7 @@ export class SoftHomeCard extends HTMLElement {
   getCardSize(){return this._config?.show_stats===false?9:11;}
   getGridOptions(){return {columns:12,rows:'auto',min_columns:6};}
   static getConfigElement(){return document.createElement('soft-home-card-editor');}
-  static getStubConfig(hass){const id=Object.keys(hass?.states||{}).find(x=>x.startsWith('light.'))||Object.keys(hass?.states||{})[0]||'sensor.replace_me';return {type:'custom:soft-home-card',device:id.startsWith('light.')?'wall_light':'temperature_humidity',entity:id,show_stats:true};}
+  static getStubConfig(){return {type:'custom:soft-home-card',device:'washing_machine',show_stats:true};}
   _schedule(){if(this._raf||!this.isConnected)return;this._raf=requestAnimationFrame(()=>{this._raf=0;this._render();});}
   _info(entity=this._config.entity){this.dispatchEvent(new CustomEvent('hass-more-info',{detail:{entityId:entity},bubbles:true,composed:true}));}
   _control(control){const E=escapeHTML,busy=this._busy.has(control.id),disabled=busy?'disabled':'';
@@ -30,7 +30,13 @@ export class SoftHomeCard extends HTMLElement {
     if(control.kind==='select')return `<label class="select-control"><span>${E(control.label)}</span><select data-control="${control.id}" aria-label="${E(control.label)}" ${disabled}>${!control.options.includes(control.value)?'<option value="" disabled selected>选择</option>':''}${control.options.map(o=>`<option value="${E(o)}" ${o===control.value?'selected':''}>${E(({heat:'制热',cool:'制冷',heat_cool:'自动温控',auto:'自动',off:'关闭',dry:'除湿',fan_only:'送风'})[o]||o)}</option>`).join('')}</select></label>`;
     return `<div class="button-row">${control.buttons.map(b=>`<button data-command="${b.id}" class="${b.id==='stop'?'stop':''}" aria-label="${E(b.label)}" ${this._busy.has(b.id)?'disabled':''}>${E(b.label)}</button>`).join('')}</div>`;
   }
-  _render(){if(!this._hass||!this._config||this._interaction)return;const v=buildView(this._hass,this._config),c=this._config,E=escapeHTML;
+  _render(){if(!this._hass||!this._config||this._interaction)return;const c=this._config,E=escapeHTML;
+    if(!c.entity){
+      this.toggleAttribute('dark',c.theme==='dark'||c.theme==='auto'&&!!this._hass.themes?.darkMode);
+      this.shadowRoot.innerHTML=`<style>${CARD_CSS}</style><ha-card><p class="main-title">${E(c.name||DEVICES[c.device][0])}</p><div class="hero">${ART[c.device].replace(/(<text\b[^>]*data-readout="\d+"[^>]*>)[\s\S]*?(<\/text>)/g,'$1—$2')}</div><p role="status">请在编辑器中选择具体设备和主实体。</p></ha-card>`;
+      this._lastRender='';return;
+    }
+    const v=buildView(this._hass,c);
     const dark=c.theme==='dark'||(c.theme==='auto'&&!!this._hass.themes?.darkMode);this.toggleAttribute('dark',dark);
     const renderKey=JSON.stringify([v,c,[...this._busy],this._error,dark]);if(renderKey===this._lastRender)return;this._lastRender=renderKey;
     const focused=this.shadowRoot.activeElement;const focusKey=focused?.dataset?.control||focused?.dataset?.command;

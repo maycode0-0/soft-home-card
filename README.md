@@ -24,15 +24,24 @@
 
 1. 从 [Releases](https://github.com/maycode0-0/soft-home-card/releases/latest) 下载 `soft-home-card.js`，或使用仓库的 `dist/soft-home-card.js`。
 2. 将文件放到 HA 配置目录的 `www/soft-home-card/soft-home-card.js`（常见完整路径为 `/config/www/soft-home-card/soft-home-card.js`）。
-3. 在仪表盘资源中添加 `/local/soft-home-card/soft-home-card.js?v=1.0.1`，类型选择 **JavaScript 模块**。
+3. 在仪表盘资源中添加 `/local/soft-home-card/soft-home-card.js?v=1.1.0`，类型选择 **JavaScript 模块**。
 4. 刷新后添加 Soft Home 卡片，在可视化编辑器里选择实体。
 
 若“资源”入口不可见，先在个人资料中开启高级模式。首次创建 `www` 目录后如出现 404，重启 HA 再访问。手动升级时替换 JS 并更新 URL 的版本参数。
 
 ## 在编辑器里配置
 
-- **设备外观**：选择 19 种插画之一。
-- **主实体**：提供主要状态和自动控件。外观与实体域独立，例如浴霸可绑定 `climate`、`fan` 或 `switch`。
+1. **设备类型**：选择洗衣机、空调等 19 种类型之一。
+2. **具体设备**：列表按类型筛选，可搜索设备名称、型号或实体 ID。家里有多台洗衣机会分别列出。
+3. **主实体与参数**：选定设备后，所有实体选择器只列出该设备关联的实体。输入中文名称或实体 ID 搜索；方向键选择，回车确认，Esc 关闭，× 清除。
+
+例如：选择「洗衣机」→「阳台洗衣机」→ 展开「读数与参数」→ 在「剩余时间 / 主读数」输入“剩余”并选择对应传感器。无需收集全屋实体 ID 或手写 YAML。
+
+设备分类根据设备和实体名称、型号识别。找不到时勾选 **「搜索全部设备手动绑定」**，搜索并选择实际设备；后续参数仍只显示这台设备的实体。优先使用 HA 设备注册表关联；若集成没有设备关联，会按稳定数字标识分组，其余实体单独列出，避免混入其他设备。
+
+切换类型或具体设备会清空旧主实体、读数、辅助操作、概览与高级 actions，请重新选择对应参数。普通名称、主题等修改保留已有高级配置。
+
+- **主实体**：提供主要状态和自动控件，例如浴霸可选择该设备的 climate、fan 或 switch 实体。
 - **名称、房间、主题、强调色**：可选。浅色默认延续设计稿。
 - **主读数**：可选其他实体或主实体属性。洗衣机可选剩余时间传感器。
 - **辅助读数**：例如温湿度计的湿度实体、冰箱冷冻温度实体。
@@ -128,6 +137,8 @@ actions:
 
 `actions` 最多 3 项，支持 `perform-action` 和 `more-info`。服务参数放在 `data`，目标放在 `target`；没有目标时不会擅自使用主实体。可用 `confirmation: "确定执行？"` 为特定操作开启确认。编辑器修改普通字段时保留高级 `actions` 配置。
 
+编辑器自动保存 `device_id`（无注册表关联时保存 `entity_group`）用于恢复设备范围，已有 YAML 仍可直接使用。
+
 主要可选配置：`primary_attribute`、`primary_unit`、`secondary_entity`、`power_entity`、`progress_entity`、`metrics`、`auxiliary`、`show_stats`、`read_only`、`invert_position`、`theme`、`accent`。`metrics` 项支持 `entity`、`attribute`、`name`、`unit`、`precision`；`auxiliary` 项支持 `entity`、`name`。
 
 ## 开发与验证
@@ -158,7 +169,7 @@ npm run demo
 2. 在 `CHANGELOG.md` 添加对应版本说明；更新手动安装示例的版本参数。
 3. 运行 `npm run build && npm run check && npm test && npm run test:browser`。
 4. 将源码、版本信息、锁文件和 `dist/soft-home-card.js` 一起提交并推送。
-5. 创建与版本一致的标签，例如 `git tag v1.0.2`，再执行 `git push origin v1.0.2`。
+5. 创建与版本一致的标签，例如 `git tag v1.1.0`，再执行 `git push origin v1.1.0`。
 
 GitHub Actions 会重新构建并检查提交的 JS 是否一致，运行逻辑测试与 Chromium 交互测试。全部通过后才创建 GitHub Release，附上 `soft-home-card.js` 和 `SHA256SUMS`。HACS 根据 Release 显示更新。工作流只使用 GitHub 自带的 `GITHUB_TOKEN`，不需要配置个人令牌。
 

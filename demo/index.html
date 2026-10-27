@@ -12,7 +12,7 @@ mock.notify=()=>{for(const el of cards)el.hass={...mock};const log=document.quer
 document.querySelector('#theme').onclick=()=>{mock.themes={darkMode:!mock.themes.darkMode};document.body.classList.toggle('dark',mock.themes.darkMode);mock.notify();};
 let offline=false;const saved={...mock.states};document.querySelector('#offline').onclick=()=>{offline=!offline;mock.states=offline?Object.fromEntries(Object.entries(mock.states).map(([id,s])=>[id,state(id,'unavailable',s.attributes)])):{...saved};mock.notify();};
 document.querySelector('#failure').onclick=()=>{mock.rejectNext=true;document.querySelector('#failure').textContent='已设置：下次操作将失败';};
-const editor=document.querySelector('soft-home-card-editor');editor.hass=mock;editor.setConfig({...DEMO_CONFIGS[10],type:'custom:soft-home-card',show_stats:true,theme:'auto'});editor.addEventListener('config-changed',e=>{window.lastEditorConfig=e.detail.config;try{cards[10].setConfig(e.detail.config);}catch{}});
+const editor=document.querySelector('soft-home-card-editor');editor.hass=mock;editor.setConfig({...DEMO_CONFIGS[10],type:'custom:soft-home-card',show_stats:true,theme:'auto'});editor.addEventListener('config-changed',e=>{window.lastEditorConfig=e.detail.config;editor.setConfig(e.detail.config);try{cards[10].setConfig(e.detail.config);}catch{}});
 document.querySelector('#edit').onclick=()=>document.querySelector('#editor-dialog').showModal();document.querySelector('#editor-close').onclick=()=>document.querySelector('#editor-dialog').close();
 document.addEventListener('hass-more-info',e=>{window.lastMoreInfo=e.detail.entityId;const log=document.querySelector('#log');log.style.display='block';log.textContent='实体详情：'+e.detail.entityId;});
 </script></body></html>

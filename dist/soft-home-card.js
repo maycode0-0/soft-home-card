@@ -1,4 +1,4 @@
-/* Soft Home Card v1.0.1 | No runtime dependencies | Local SVG artwork */
+/* Soft Home Card v1.1.0 | No runtime dependencies | Local SVG artwork */
 (() => {
 'use strict';
 // Generated from assets/devices. Do not edit by hand.
@@ -28,14 +28,14 @@ const stateLabels = { on:'已开启',off:'已关闭',idle:'待机',standby:'待�
 
 function validateConfig(config) {
   if (!config || !DEVICES[config.device]) throw new Error('请选择有效的 device 设备类型。');
-  if (!entityPattern.test(config.entity || '')) throw new Error('请选择主实体 entity，例如 light.living_room。');
+  if (config.entity != null && (typeof config.entity !== 'string' || config.entity !== '' && !entityPattern.test(config.entity))) throw new Error('请选择主实体 entity，例如 light.living_room。');
   const c = {theme:'light',show_stats:true,read_only:false,...config};
   if (!['light','dark','auto'].includes(c.theme)) throw new Error('theme 必须为 light、dark 或 auto。');
   if (c.accent && !['blue','warm'].includes(c.accent)) throw new Error('accent 必须为 blue 或 warm。');
   for (const field of ['primary_entity','secondary_entity','power_entity','progress_entity']) {
     if (c[field] && !entityPattern.test(c[field])) throw new Error(`${field} 不是有效实体 ID。`);
   }
-  for (const field of ['name','room','primary_attribute','primary_label','primary_unit']) if (c[field] != null && typeof c[field] !== 'string') throw new Error(`${field} 必须为文本。`);
+  for (const field of ['name','room','primary_attribute','primary_label','primary_unit','device_id','entity_group']) if (c[field] != null && typeof c[field] !== 'string') throw new Error(`${field} 必须为文本。`);
   for (const field of ['read_only','show_stats','invert_position']) if (c[field] != null && typeof c[field] !== 'boolean') throw new Error(`${field} 必须为布尔值。`);
   for (const field of ['metrics','auxiliary','actions']) if (c[field] != null && (!Array.isArray(c[field]) || c[field].length > 3)) throw new Error(`${field} 最多支持 3 项。`);
   for (const item of [...(c.metrics || []),...(c.auxiliary || [])]) {
@@ -243,44 +243,257 @@ button,select,input{font:inherit;color:inherit}button,select{border:1px solid va
 `;
 
 const EDITOR_CSS = `
-:host{display:block;color:var(--primary-text-color,#23334c);font-family:var(--primary-font-family,system-ui,sans-serif)}*{box-sizing:border-box}.form{display:grid;grid-template-columns:1fr 1fr;gap:16px}.full{grid-column:1/-1}label{display:flex;flex-direction:column;gap:7px;font-size:13px}select,input{width:100%;min-height:42px;border:1px solid var(--divider-color,#ccd8e7);border-radius:9px;background:var(--card-background-color,#fff);color:inherit;font:inherit;padding:8px}.check{flex-direction:row;align-items:center}.check input{width:18px;min-height:18px}details{grid-column:1/-1;border-top:1px solid var(--divider-color,#ccd8e7);padding-top:16px}summary{cursor:pointer;font-weight:600;margin-bottom:14px}p{font-size:12px;line-height:1.7;color:var(--secondary-text-color,#71839d)}.help{font-size:12px;padding:12px;border-radius:8px;background:var(--secondary-background-color,#e9eff8)}select:focus-visible,input:focus-visible{outline:2px solid var(--primary-color,#3f86df);outline-offset:2px}@media(max-width:360px){.form{grid-template-columns:1fr}}
+:host{display:block;color:var(--primary-text-color,#23334c);font-family:var(--primary-font-family,system-ui,sans-serif)}*{box-sizing:border-box}.form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}.form>*,label{min-width:0}.help{line-height:1.7;overflow-wrap:anywhere}.full{grid-column:1/-1}label{display:flex;flex-direction:column;gap:7px;font-size:13px}select,input{width:100%;min-height:42px;border:1px solid var(--divider-color,#ccd8e7);border-radius:9px;background:var(--card-background-color,#fff);color:inherit;font:inherit;padding:8px}.check{flex-direction:row;align-items:center}.check input{width:18px;min-height:18px}details{grid-column:1/-1;border-top:1px solid var(--divider-color,#ccd8e7);padding-top:16px}summary{cursor:pointer;font-weight:600;margin-bottom:14px}p{font-size:12px;line-height:1.7;color:var(--secondary-text-color,#71839d)}.help{font-size:12px;padding:12px;border-radius:8px;background:var(--secondary-background-color,#e9eff8)}select:focus-visible,input:focus-visible{outline:2px solid var(--primary-color,#3f86df);outline-offset:2px}@media(max-width:360px){.form{grid-template-columns:1fr}}
 `;
 
 
-class SoftHomeCardEditor extends HTMLElement {
-  constructor(){super();this.attachShadow({mode:'open'});this.shadowRoot.addEventListener('change',event=>this._change(event));}
-  setConfig(config){this._config={show_stats:true,...config};this._render();}
-  set hass(hass){this._hass=hass;const key=Object.keys(hass.states||{}).sort().join('|');if(key!==this._entityKey){this._entityKey=key;this._render();}}
-  get hass(){return this._hass;}
-  _entities(selected='',optional=false){
-    const states=this._hass?.states||{};
-    const ids=Object.keys(states).sort();
-    if(selected&&!ids.includes(selected))ids.unshift(selected);
-    return `<option value="">${optional?'不配置':'选择实体'}</option>`+ids.map(id=>`<option value="${escapeHTML(id)}" ${id===selected?'selected':''}>${escapeHTML(states[id]?.attributes?.friendly_name || id)} · ${escapeHTML(id)}</option>`).join('');
+const TYPE_MATCH = {
+  washing_machine: /洗衣|洗烘|滚筒|波轮|washing[ _-]?machine|washer|laundry/i,
+  dryer: /烘干|干衣|洗烘|dryer|tumble/i,
+  projector: /投影|projector/i,
+  projector_lift: /投影.*(?:升降|支架)|(?:升降|支架).*投影|projector.*(?:lift|mount)|(?:lift|mount).*projector/i,
+  screen: /幕布|投影幕|projector[ _-]?screen|projection[ _-]?screen/i,
+  air_conditioner: /空调|air[ _-]?condition|(?:^|[ ._-])ac(?:$|[ ._-])/i,
+  refrigerator: /冰箱|冷藏|冷冻|fridge|refrigerator|freezer/i,
+  integrated_stove: /集成灶|烟机|油烟|灶具|stove|cooker[ _-]?hood|range[ _-]?hood/i,
+  water_heater: /热水器|water[ _-]?heater|water[ _-]?boiler/i,
+  floor_heating: /地暖|floor[ _-]?heat|underfloor/i,
+  wall_light: /壁灯|wall[ _-]?(?:light|lamp)|sconce/i,
+  spotlight: /射灯|spot[ _-]?light/i,
+  downlight: /筒灯|down[ _-]?light|recessed/i,
+  pendant_light: /吊灯|pendant|chandelier/i,
+  led_strip: /灯带|灯条|led[ _-]?strip|light[ _-]?strip/i,
+  tea_machine: /茶吧|饮水|净饮|tea[ _-]?machine|water[ _-]?dispenser|kettle/i,
+  bathroom_mirror: /浴室镜|镜灯|镜前|bathroom[ _-]?mirror|mirror/i,
+  temperature_humidity: /温湿度|温度|湿度|thermo|hygro|temperature|humidity/i,
+  bathroom_heater: /浴霸|暖风机|bathroom[ _-]?heat|bath[ _-]?heat/i,
+};
+const MAIN_DOMAINS = {
+  washing_machine:['sensor','switch','select','binary_sensor'], dryer:['sensor','switch','select','binary_sensor'],
+  projector:['media_player','switch','remote','sensor'], projector_lift:['cover','switch','sensor'], screen:['cover','switch','sensor'],
+  air_conditioner:['climate','switch','sensor'], refrigerator:['sensor','number','climate','switch'],
+  integrated_stove:['fan','switch','sensor'], water_heater:['water_heater','climate','switch','sensor'], floor_heating:['climate','switch','sensor'],
+  wall_light:['light','switch'], spotlight:['light','switch'], downlight:['light','switch'], pendant_light:['light','switch'], led_strip:['light','switch'],
+  tea_machine:['sensor','water_heater','number','switch'], bathroom_mirror:['light','switch'], temperature_humidity:['sensor'], bathroom_heater:['climate','fan','switch','sensor'],
+};
+const registryMap=(value,key)=>Array.isArray(value)?Object.fromEntries(value.map(item=>[item[key],item])):value||{};
+const normalizedSearch = value => String(value||'').normalize('NFKC').toLocaleLowerCase().trim();
+function searchItems(items,query) {
+  const tokens=normalizedSearch(query).split(/\s+/).filter(Boolean);
+  return items.filter(item=>tokens.every(token=>normalizedSearch(`${item.label} ${item.description||''} ${item.value} ${item.search||''}`).includes(token)));
+}
+function deviceGroups(hass,kind,showAll=false) {
+  const entities=registryMap(hass?.entities,'entity_id'),devices=registryMap(hass?.devices,'id'),groups=new Map();
+  for(const [id,state] of Object.entries(hass?.states||{})) {
+    const entry=entities[id]||{},device=devices[entry.device_id]||{};
+    // An integration's shared stable numeric identifier can group legacy entities.
+    // Otherwise keep unregistered entities separate; never group all devices of one brand.
+    const legacy=id.split('.')[1]?.match(/^(.+?_\d{6,})(?:_|$)/)?.[1];
+    const key=entry.device_id?`device:${entry.device_id}`:legacy?`legacy:${legacy}`:`entity:${id}`;
+    if(!groups.has(key))groups.set(key,{key,deviceId:entry.device_id||'',label:device.name_by_user||device.name||state.attributes?.friendly_name||id,model:device.model||'',manufacturer:device.manufacturer||'',entityIds:[],texts:[]});
+    const group=groups.get(key);group.entityIds.push(id);
+    group.texts.push(id,state.attributes?.friendly_name||'',entry.name||'',entry.original_name||'',device.model||'',device.name||'',device.name_by_user||'');
   }
-  _render(){if(!this._config)return;const c=this._config,E=escapeHTML;
-    const field=(name,label,value='',type='text')=>`<label>${E(label)}<input data-field="${name}" type="${type}" value="${E(value)}"></label>`;
-    const entity=(name,label,value='',optional=true)=>`<label class="full">${E(label)}<select data-field="${name}">${this._entities(value,optional)}</select></label>`;
-    const check=(name,label)=>`<label class="check"><input data-field="${name}" type="checkbox" ${c[name]?'checked':''}>${E(label)}</label>`;
+  return [...groups.values()].filter(group=> {
+    if(showAll)return true;
+    const text=group.texts.join(' ');
+    if(kind==='projector'&&/升降|支架|lift|mount|幕布|screen/i.test(text))return false;
+    return !!TYPE_MATCH[kind]?.test(text);
+  }).sort((a,b)=>a.label.localeCompare(b.label,'zh-CN'));
+}
+function entityScope(hass,config) {
+  const groups=deviceGroups(hass,config.device,true);
+  if(config.device_id)return groups.find(g=>g.deviceId===config.device_id)||null;
+  if(config.entity_group){
+    // Registry data may arrive after a legacy selection; follow the same entity.
+    return groups.find(g=>g.key===config.entity_group)||groups.find(g=>g.entityIds.includes(config.entity))||null;
+  }
+  const current=groups.find(g=>g.entityIds.includes(config.entity));
+  if(!current)return null;
+  // An old unrelated default entity must not force the new category to show it.
+  return deviceGroups(hass,config.device).some(g=>g.key===current.key)?current:null;
+}
+function mainEntityScore(hass,kind,id) {
+  const state=hass?.states?.[id],domain=DOMAIN(id),order=MAIN_DOMAINS[kind]||['sensor'];
+  if(!order.includes(domain))return -1000;
+  let score=100-order.indexOf(domain)*15;
+  const text=`${id} ${state?.attributes?.friendly_name||''}`;
+  if(['washing_machine','dryer'].includes(kind)) {
+    if(/运行状态|工作状态|洗涤阶段|洗涤状态|烘干状态|程序状态|operation[ _-]?state|run(?:ning)?[ _-]?(?:state|status)|cycle[ _-]?state|phase/i.test(text))score+=120;
+    if(domain==='switch'&&/电源|power/i.test(text))score+=60;
+    if(/剩余|remaining|remain|time[ _-]?left/i.test(text))score+=15;
+    if(/水温过高|故障|告警|门状态|洗涤剂|筒灯|overheat|door|detergent|down_light|error|fault|connectivity|device_status/i.test(text))score-=100;
+    if(domain==='binary_sensor')score-=50;
+  }
+  if(kind==='temperature_humidity'&&(state?.attributes?.device_class==='temperature'||/温度|temperature/i.test(text)))score+=50;
+  return score;
+}
+function entityOptions(hass,config,field) {
+  const scope=entityScope(hass,config);if(!scope)return [];
+  const states=hass?.states||{};
+  const role=field.startsWith('auxiliary.')?'auxiliary':field.startsWith('metrics.')?'metric':field;
+  const eligible=id=>{
+    const domain=DOMAIN(id);
+    if(role==='entity')return (MAIN_DOMAINS[config.device]||['sensor']).includes(domain);
+    if(role==='auxiliary')return ['switch','light','fan','button','input_button','input_boolean','select','number','script','climate','cover'].includes(domain);
+    if(['power_entity','progress_entity'].includes(role))return ['sensor','number','input_number'].includes(domain);
+    return !['automation','scene','camera','update','image','event'].includes(domain);
+  };
+  return scope.entityIds.filter(eligible).sort((a,b)=>role==='entity'?mainEntityScore(hass,config.device,b)-mainEntityScore(hass,config.device,a)||a.localeCompare(b):a.localeCompare(b)).map(id=>{
+    const a=states[id]?.attributes||{};return {value:id,label:a.friendly_name||id,description:id+(a.unit_of_measurement?` · ${a.unit_of_measurement}`:''),search:a.device_class||''};
+  });
+}
+function selectDeviceScope(hass,config,key) {
+  const group=deviceGroups(hass,config.device,true).find(g=>g.key===key);
+  const next=clearEntityBindings(config);
+  if(!group)return next;
+  if(group.deviceId)next.device_id=group.deviceId;
+  else next.entity_group=group.key;
+  const candidates=group.entityIds.filter(id=>mainEntityScore(hass,config.device,id)>-1000).sort((a,b)=>mainEntityScore(hass,config.device,b)-mainEntityScore(hass,config.device,a)||a.localeCompare(b));
+  if(candidates.length&&mainEntityScore(hass,config.device,candidates[0])>=0)next.entity=candidates[0];
+  return next;
+}
+function clearEntityBindings(config) {
+  const next={...config};
+  for(const key of ['device_id','entity_group','entity','primary_entity','primary_attribute','primary_label','primary_unit','secondary_entity','power_entity','progress_entity','auxiliary','metrics','actions','invert_position'])delete next[key];
+  return next;
+}
+function fieldLabels(kind) {
+  const labels={primary:'主读数实体',secondary:'辅助读数实体',progress:false};
+  if(['washing_machine','dryer'].includes(kind))return {primary:'剩余时间 / 主读数',secondary:'洗涤阶段 / 辅助读数',progress:true};
+  if(kind==='temperature_humidity')return {primary:'温度传感器',secondary:'湿度传感器',progress:false};
+  if(kind==='refrigerator')return {primary:'冷藏温度',secondary:'冷冻温度',progress:false};
+  if(['projector_lift','screen'].includes(kind))return {...labels,primary:'行程 / 主读数',progress:true};
+  return labels;
+}
+
+
+// A small, dependency-free searchable selector. No private HA component API needed.
+class SoftHomePicker extends HTMLElement {
+  constructor(){
+    super();this.attachShadow({mode:'open'});this._items=[];this._query='';this._value='';this._active=-1;this._open=false;
+    this.shadowRoot.addEventListener('input',e=>{if(e.target.matches('input')){this._query=e.target.value;this._open=true;this._active=-1;this._results();}});
+    this.shadowRoot.addEventListener('change',e=>e.stopPropagation());
+    this.shadowRoot.addEventListener('focusin',e=>{if(e.target.matches('input')&&!this._open){this._query='';e.target.value='';this._open=true;this._results();}});
+    this.shadowRoot.addEventListener('focusout',()=>setTimeout(()=>{if(!this.shadowRoot.activeElement)this._close();},0));
+    this.shadowRoot.addEventListener('click',e=>{if(e.target.matches('input')&&!this._open){this._query='';e.target.value='';this._open=true;this._results();return;}const target=e.target.closest('button');if(!target)return;if(target.hasAttribute('data-clear'))this._choose('');else if(target.dataset.value!==undefined)this._choose(target.dataset.value);});
+    this.shadowRoot.addEventListener('keydown',e=>this._key(e));
+  }
+  set options(options){this._items=options.items||[];this._value=options.value||'';this._label=options.label||'搜索';this._placeholder=options.placeholder||'搜索名称或实体 ID';this._disabled=!!options.disabled;this._empty=options.empty||'没有匹配项';this._render();}
+  _selected(){const item=this._items.find(x=>x.value===this._value);return item?.label||this._value||'';}
+  _render(){const E=escapeHTML;this.shadowRoot.innerHTML=`<style>
+    :host{display:block;min-width:0;color:var(--primary-text-color,#23334c);font:inherit}*{box-sizing:border-box}.label{display:block;font-size:13px;margin-bottom:7px}.control{display:flex;align-items:center;border:1px solid var(--divider-color,#ccd8e7);border-radius:9px;background:var(--card-background-color,#fff)}.control:focus-within{outline:2px solid var(--primary-color,#3f86df);outline-offset:1px}input{width:100%;min-width:0;min-height:43px;border:0;background:transparent;color:inherit;font:inherit;padding:10px;outline:none}input:disabled{opacity:.5}button{color:inherit;font:inherit;cursor:pointer}.clear{flex:0 0 38px;background:transparent;border:0;min-height:40px;font-size:20px}.results{border:1px solid var(--divider-color,#ccd8e7);border-radius:9px;margin-top:5px;background:var(--card-background-color,#fff);max-height:260px;overflow-y:auto;overscroll-behavior:contain}.option{display:block;text-align:left;border:0;border-bottom:1px solid var(--divider-color,#ccd8e7);background:transparent;padding:10px;width:100%;min-height:48px;overflow-wrap:anywhere}.option:hover,.option.active{background:var(--secondary-background-color,#e9eff8)}.option[aria-selected=true]{color:var(--primary-color,#3f86df)}.description{display:block;color:var(--secondary-text-color,#71839d);font-size:11px;margin-top:4px}.message{font-size:12px;padding:12px;color:var(--secondary-text-color,#71839d)}[hidden]{display:none!important}
+    </style><label class="label" for="search">${E(this._label)}</label><div class="control"><input id="search" type="search" role="combobox" aria-autocomplete="list" aria-controls="options" aria-expanded="false" aria-label="${E(this._label)}" autocomplete="off" placeholder="${E(this._placeholder)}" value="${E(this._selected())}" ${this._disabled?'disabled':''}><button class="clear" type="button" data-clear aria-label="清除${E(this._label)}" ${this._disabled||!this._value?'hidden':''}>×</button></div><div class="results" hidden><div id="options" role="listbox" aria-label="${E(this._label)}选项"></div><div class="message" role="status"></div></div>`;this._open=false;}
+  _results(){
+    const E=escapeHTML,all=searchItems(this._items,this._query);this._matches=all.slice(0,80);
+    const input=this.shadowRoot.querySelector('input');input.setAttribute('aria-expanded',String(this._open));input.removeAttribute('aria-activedescendant');
+    this.shadowRoot.querySelector('.results').hidden=!this._open;
+    this.shadowRoot.querySelector('#options').innerHTML=this._matches.map((item,i)=>`<button type="button" tabindex="-1" role="option" class="option" id="option-${i}" aria-selected="${item.value===this._value}" data-value="${E(item.value)}"><span>${E(item.label)}</span><span class="description">${E(item.description||item.value)}</span></button>`).join('');
+    this.shadowRoot.querySelector('.message').textContent=!all.length?this._empty:all.length>80?`显示前 80 项，共 ${all.length} 项，请继续输入缩小范围`:`${all.length} 项`;
+  }
+  _choose(value){this._value=value;this._close();this.shadowRoot.querySelector('.clear').hidden=!value;this.dispatchEvent(new CustomEvent('value-changed',{detail:{value},bubbles:true,composed:true}));}
+  _close(){this._open=false;const input=this.shadowRoot.querySelector('input');if(!input)return;input.value=this._selected();input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');this.shadowRoot.querySelector('.results').hidden=true;}
+  _key(event){
+    if(event.key==='Escape'){event.preventDefault();event.stopPropagation();this._close();return;}
+    if(!['ArrowDown','ArrowUp','Enter'].includes(event.key))return;
+    if(event.key==='Enter'&&!this._open)return;
+    event.preventDefault();event.stopPropagation();
+    if(!this._open){this._query='';this._open=true;this._results();}
+    const length=this._matches?.length||0;if(!length)return;
+    if(event.key==='Enter'){if(this._active>=0)this._choose(this._matches[this._active].value);return;}
+    this._active=this._active<0?(event.key==='ArrowDown'?0:length-1):(this._active+(event.key==='ArrowDown'?1:-1)+length)%length;
+    const options=this.shadowRoot.querySelectorAll('.option');options.forEach((el,i)=>el.classList.toggle('active',i===this._active));
+    this.shadowRoot.querySelector('input').setAttribute('aria-activedescendant',`option-${this._active}`);options[this._active]?.scrollIntoView({block:'nearest'});
+  }
+}
+if(!customElements.get('soft-home-picker'))customElements.define('soft-home-picker',SoftHomePicker);
+
+
+class SoftHomeCardEditor extends HTMLElement {
+  constructor(){
+    super();this.attachShadow({mode:'open'});this._showAll=false;this._registry={};
+    this.shadowRoot.addEventListener('change',event=>this._change(event));
+    this.shadowRoot.addEventListener('value-changed',event=>this._change(event));
+    this.shadowRoot.addEventListener('focusout',()=>setTimeout(()=>{
+      if(this._pendingRender&&!this.shadowRoot.activeElement){this._pendingRender=false;this._render();}
+    },0));
+  }
+  setConfig(config){
+    const next={show_stats:true,...config};
+    if(JSON.stringify(next)===JSON.stringify(this._config))return;
+    this._config=next;this._resetRows();this._render();
+  }
+  set hass(hass){this._hass=hass;this._refresh();this._loadRegistry();}
+  get hass(){return this._hass;}
+  _data(){return {...this._hass,entities:this._hass?.entities??this._registry.entities,devices:this._hass?.devices??this._registry.devices};}
+  async _loadRegistry(){
+    if(this._registryRequested||!this._hass?.callWS||this._hass.entities&&this._hass.devices)return;
+    this._registryRequested=true;
+    const result=await Promise.allSettled(['entity','device'].map(kind=>Promise.resolve().then(()=>this._hass.callWS({type:`config/${kind}_registry/list`}))));
+    result.forEach((r,i)=>{if(r.status==='fulfilled')this._registry[i===0?'entities':'devices']=r.value;});
+    this._refresh();
+  }
+  _refresh(){
+    const data=this._data();
+    // Ignore state ticks so an open search and unfinished text keep their focus.
+    const key=JSON.stringify([data.entities,data.devices,Object.entries(data.states||{}).map(([id,s])=>[id,s.attributes?.friendly_name,s.attributes?.unit_of_measurement,s.attributes?.device_class])]);
+    if(key===this._entityKey)return;this._entityKey=key;
+    if(this.shadowRoot.activeElement)this._pendingRender=true;else this._render();
+  }
+  _resetRows(){this._rows={};for(const list of ['auxiliary','metrics'])this._rows[list]=[0,1,2].map(i=>({...this._config?.[list]?.[i]}));}
+  _render(){
+    if(!this._config)return;
+    const c=this._config,E=escapeHTML,data=this._data(),scope=entityScope(data,c),labels=fieldLabels(c.device);
+    const opened=new Set([...this.shadowRoot.querySelectorAll('details[open]')].map(el=>el.dataset.section));
+    const pickers=[];
+    const picker=(name,label,value,items,disabled=false,empty='这台设备没有可选实体')=>{
+      pickers.push({name,label,value,items,disabled,empty});return `<soft-home-picker class="full" data-field="${name}"></soft-home-picker>`;
+    };
+    const field=(name,label,value='')=>`<label>${E(label)}<input data-field="${name}" type="text" value="${E(value)}"></label>`;
+    const entity=(name,label,value='')=>picker(name,label,value,entityOptions(data,c,name),!scope);
+    const check=(name,label,value=c[name])=>`<label class="check"><input data-field="${name}" type="checkbox" ${value?'checked':''}>${E(label)}</label>`;
+    const details=(key,title,content)=>`<details data-section="${key}" ${opened.has(key)?'open':''}><summary>${title}</summary>${content}</details>`;
+    const groups=deviceGroups(data,c.device,this._showAll);
+    if(scope&&!groups.some(g=>g.key===scope.key))groups.unshift(scope);
+    const devices=groups.map(g=>({value:g.key,label:g.label,description:[g.manufacturer,g.model,`${g.entityIds.length} 个实体`,g.deviceId||g.key].filter(Boolean).join(' · '),search:g.texts.join(' ')}));
     this.shadowRoot.innerHTML=`<style>${EDITOR_CSS}</style><div class="form">
-      <label class="full">设备外观<select data-field="device">${Object.entries(DEVICES).map(([key,[name]])=>`<option value="${key}" ${c.device===key?'selected':''}>${name}</option>`).join('')}</select></label>
-      ${entity('entity','主实体',c.entity,false)}${field('name','卡片名称（可选）',c.name)}${field('room','房间 / 副标题（可选）',c.room)}
+      <label class="full">设备类型<select data-field="device">${Object.entries(DEVICES).map(([key,[name]])=>`<option value="${key}" ${c.device===key?'selected':''}>${name}</option>`).join('')}</select></label>
+      ${picker('_scope',`选择具体${DEVICES[c.device]?.[0]||'设备'}`,scope?.key,devices,false,'未找到匹配设备，可勾选下方「搜索全部设备」手动选择')}
+      <div class="full">${check('_showAll','找不到设备？搜索全部设备手动绑定',this._showAll)}</div>
+      <div class="help full">${scope?`已限定为「${E(scope.label)}」的实体。输入名称或实体 ID 搜索参数。`:'先选择具体设备，再配置它的参数。同类设备会分别列出。'}<br>切换设备类型或具体设备会清空旧实体绑定和自定义操作。</div>
+      ${entity('entity','主实体（状态 / 控制）',c.entity)}
+      ${scope&&!scope.deviceId?'<p class="full">此集成未提供设备关联，当前按实体标识分组；无法关联的实体会单独列出。</p>':''}
+      ${field('name','卡片名称（可选）',c.name)}${field('room','房间 / 副标题（可选）',c.room)}
       <label>主题<select data-field="theme">${[['light','浅蓝白'],['dark','深色'],['auto','跟随 HA']].map(([key,label])=>`<option value="${key}" ${(c.theme||'light')===key?'selected':''}>${label}</option>`).join('')}</select></label>
       <label>强调色<select data-field="accent"><option value="">按设备自动</option><option value="blue" ${c.accent==='blue'?'selected':''}>蓝色</option><option value="warm" ${c.accent==='warm'?'selected':''}>暖色</option></select></label>
-      ${check('read_only','只读展示')}${check('invert_position','反转行程读数（100 − HA 位置）')}
-      <div class="help full">外观与主实体独立：卡片根据实体支持的能力显示控件。传感器只有读数；需要启动、除雾、换气等操作时，可在下方添加实际按钮或开关实体。</div>
-      <details><summary>主读数与辅助读数</summary><div class="form">${entity('primary_entity','自定义主读数实体',c.primary_entity)}${field('primary_attribute','属性名（留空读取实体状态）',c.primary_attribute)}${field('primary_label','主读数标题',c.primary_label)}${field('primary_unit','单位（留空自动）',c.primary_unit)}${entity('secondary_entity','辅助读数（如湿度）',c.secondary_entity)}${entity('power_entity','功率传感器',c.power_entity)}${entity('progress_entity','环形进度传感器（0–100）',c.progress_entity)}</div><p>洗衣机可把剩余时间传感器设为主读数，把运行进度传感器设为环形进度。未配置的数据不会使用示例值。</p></details>
-      <details><summary>辅助操作（最多 3 个）</summary><div class="form">${[0,1,2].map(i=>entity(`auxiliary.${i}.entity`,`操作 ${i+1}：实体`,c.auxiliary?.[i]?.entity)+field(`auxiliary.${i}.name`,`操作 ${i+1}：按钮文字`,c.auxiliary?.[i]?.name)).join('')}</div><p>开关 / 灯 / 风扇：开关切换；按钮：执行；脚本：运行。其他实体打开详情。可用于除雾、启动洗衣、换气、保温等。</p></details>
-      <details><summary>底部概览（最多 3 项）</summary><div class="form">${check('show_stats','显示设备概览')}${[0,1,2].map(i=>entity(`metrics.${i}.entity`,`指标 ${i+1}：实体`,c.metrics?.[i]?.entity)+field(`metrics.${i}.name`,`指标 ${i+1}：标题`,c.metrics?.[i]?.name)+field(`metrics.${i}.attribute`,`指标 ${i+1}：属性名（可选）`,c.metrics?.[i]?.attribute)).join('')}</div><p>不指定指标时显示当前实体已提供的属性。高级服务操作可通过代码编辑器配置 actions。</p></details>
+      ${check('read_only','只读展示')}${['screen','projector_lift'].includes(c.device)?check('invert_position','反转行程读数（100 − HA 位置）'):''}
+      ${details('readings','读数与参数',`<div class="form">${entity('primary_entity',labels.primary,c.primary_entity)}${field('primary_attribute','属性名（留空读取实体状态）',c.primary_attribute)}${field('primary_label','主读数标题',c.primary_label)}${field('primary_unit','单位（留空自动）',c.primary_unit)}${entity('secondary_entity',labels.secondary,c.secondary_entity)}${entity('power_entity','功率传感器',c.power_entity)}${labels.progress?entity('progress_entity','环形进度传感器（0–100）',c.progress_entity):''}</div><p>参数均来自所选设备。未接入的参数不会显示，未配置的读数不会填入示例值。</p>`)}
+      ${details('auxiliary','辅助操作（最多 3 个）',`<div class="form">${this._rows.auxiliary.map((row,i)=>entity(`auxiliary.${i}.entity`,`操作 ${i+1}：实体`,row.entity)+field(`auxiliary.${i}.name`,`操作 ${i+1}：按钮文字`,row.name)).join('')}</div><p>选择这台设备的开关、按钮等实体，用于启动、除雾、换气等。跨设备脚本可在代码编辑器的 actions 中配置。</p>`)}
+      ${details('metrics','底部概览（最多 3 项）',`<div class="form">${check('show_stats','显示设备概览')}${this._rows.metrics.map((row,i)=>entity(`metrics.${i}.entity`,`指标 ${i+1}：实体`,row.entity)+field(`metrics.${i}.name`,`指标 ${i+1}：标题`,row.name)+field(`metrics.${i}.attribute`,`指标 ${i+1}：属性名（可选）`,row.attribute)).join('')}</div><p>不指定时显示主实体已有的属性。</p>`)}
     </div>`;
+    for(const options of pickers)this.shadowRoot.querySelector(`[data-field="${options.name}"]`).options=options;
   }
-  _change(event){const input=event.target,key=input.dataset.field;if(!key)return;const next={...this._config},value=input.type==='checkbox'?input.checked:input.value;
-    if(key.includes('.')){const [list,index,prop]=key.split('.');const rows=(next[list]||[]).map(x=>({...x}));while(rows.length<=Number(index))rows.push({});rows[index]={...rows[index],[prop]:value};next[list]=rows.filter(x=>x.entity);if(!next[list].length)delete next[list];}
-    else if(value==='')delete next[key];else next[key]=value;
+  _change(event){
+    const input=event.target,key=input.dataset.field;if(!key)return;
+    const value=event.type==='value-changed'?event.detail.value:input.type==='checkbox'?input.checked:input.value;
+    if(key==='_showAll'){this._showAll=value;this._render();return;}
+    let next={...this._config};let rebuild=false;
+    const currentScope=entityScope(this._data(),next);
+    if(currentScope?.deviceId)next.device_id=currentScope.deviceId;
+    else if(currentScope)next.entity_group=currentScope.key;
+    if(key==='device'){
+      if(value===next.device)return;
+      next={...clearEntityBindings(next),device:value};this._showAll=false;rebuild=true;
+    }else if(key==='_scope'){
+      if(value===entityScope(this._data(),next)?.key)return;
+      next=selectDeviceScope(this._data(),next,value);rebuild=true;
+    }else if(key.includes('.')){
+      const [list,index,prop]=key.split('.');this._rows[list][index]={...this._rows[list][index],[prop]:value};
+      next[list]=this._rows[list].filter(row=>row.entity).map(row=>({...row}));if(!next[list].length)delete next[list];
+    }else if(value==='')delete next[key];else next[key]=value;
     this._config=next;
+    if(rebuild){this._resetRows();this._render();}
     this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:next},bubbles:true,composed:true}));
-    // Rebuild indexed rows after removal so the remaining editor fields keep their mapping.
-    if(key.includes('.')&&key.endsWith('.entity'))this._render();
   }
 }
 if(!customElements.get('soft-home-card-editor'))customElements.define('soft-home-card-editor',SoftHomeCardEditor);
@@ -304,7 +517,7 @@ class SoftHomeCard extends HTMLElement {
   getCardSize(){return this._config?.show_stats===false?9:11;}
   getGridOptions(){return {columns:12,rows:'auto',min_columns:6};}
   static getConfigElement(){return document.createElement('soft-home-card-editor');}
-  static getStubConfig(hass){const id=Object.keys(hass?.states||{}).find(x=>x.startsWith('light.'))||Object.keys(hass?.states||{})[0]||'sensor.replace_me';return {type:'custom:soft-home-card',device:id.startsWith('light.')?'wall_light':'temperature_humidity',entity:id,show_stats:true};}
+  static getStubConfig(){return {type:'custom:soft-home-card',device:'washing_machine',show_stats:true};}
   _schedule(){if(this._raf||!this.isConnected)return;this._raf=requestAnimationFrame(()=>{this._raf=0;this._render();});}
   _info(entity=this._config.entity){this.dispatchEvent(new CustomEvent('hass-more-info',{detail:{entityId:entity},bubbles:true,composed:true}));}
   _control(control){const E=escapeHTML,busy=this._busy.has(control.id),disabled=busy?'disabled':'';
@@ -313,7 +526,13 @@ class SoftHomeCard extends HTMLElement {
     if(control.kind==='select')return `<label class="select-control"><span>${E(control.label)}</span><select data-control="${control.id}" aria-label="${E(control.label)}" ${disabled}>${!control.options.includes(control.value)?'<option value="" disabled selected>选择</option>':''}${control.options.map(o=>`<option value="${E(o)}" ${o===control.value?'selected':''}>${E(({heat:'制热',cool:'制冷',heat_cool:'自动温控',auto:'自动',off:'关闭',dry:'除湿',fan_only:'送风'})[o]||o)}</option>`).join('')}</select></label>`;
     return `<div class="button-row">${control.buttons.map(b=>`<button data-command="${b.id}" class="${b.id==='stop'?'stop':''}" aria-label="${E(b.label)}" ${this._busy.has(b.id)?'disabled':''}>${E(b.label)}</button>`).join('')}</div>`;
   }
-  _render(){if(!this._hass||!this._config||this._interaction)return;const v=buildView(this._hass,this._config),c=this._config,E=escapeHTML;
+  _render(){if(!this._hass||!this._config||this._interaction)return;const c=this._config,E=escapeHTML;
+    if(!c.entity){
+      this.toggleAttribute('dark',c.theme==='dark'||c.theme==='auto'&&!!this._hass.themes?.darkMode);
+      this.shadowRoot.innerHTML=`<style>${CARD_CSS}</style><ha-card><p class="main-title">${E(c.name||DEVICES[c.device][0])}</p><div class="hero">${ART[c.device].replace(/(<text\b[^>]*data-readout="\d+"[^>]*>)[\s\S]*?(<\/text>)/g,'$1—$2')}</div><p role="status">请在编辑器中选择具体设备和主实体。</p></ha-card>`;
+      this._lastRender='';return;
+    }
+    const v=buildView(this._hass,c);
     const dark=c.theme==='dark'||(c.theme==='auto'&&!!this._hass.themes?.darkMode);this.toggleAttribute('dark',dark);
     const renderKey=JSON.stringify([v,c,[...this._busy],this._error,dark]);if(renderKey===this._lastRender)return;this._lastRender=renderKey;
     const focused=this.shadowRoot.activeElement;const focusKey=focused?.dataset?.control||focused?.dataset?.command;

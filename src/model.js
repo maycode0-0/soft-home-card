@@ -22,14 +22,14 @@ const stateLabels = { on:'已开启',off:'已关闭',idle:'待机',standby:'待�
 
 export function validateConfig(config) {
   if (!config || !DEVICES[config.device]) throw new Error('请选择有效的 device 设备类型。');
-  if (!entityPattern.test(config.entity || '')) throw new Error('请选择主实体 entity，例如 light.living_room。');
+  if (config.entity != null && (typeof config.entity !== 'string' || config.entity !== '' && !entityPattern.test(config.entity))) throw new Error('请选择主实体 entity，例如 light.living_room。');
   const c = {theme:'light',show_stats:true,read_only:false,...config};
   if (!['light','dark','auto'].includes(c.theme)) throw new Error('theme 必须为 light、dark 或 auto。');
   if (c.accent && !['blue','warm'].includes(c.accent)) throw new Error('accent 必须为 blue 或 warm。');
   for (const field of ['primary_entity','secondary_entity','power_entity','progress_entity']) {
     if (c[field] && !entityPattern.test(c[field])) throw new Error(`${field} 不是有效实体 ID。`);
   }
-  for (const field of ['name','room','primary_attribute','primary_label','primary_unit']) if (c[field] != null && typeof c[field] !== 'string') throw new Error(`${field} 必须为文本。`);
+  for (const field of ['name','room','primary_attribute','primary_label','primary_unit','device_id','entity_group']) if (c[field] != null && typeof c[field] !== 'string') throw new Error(`${field} 必须为文本。`);
   for (const field of ['read_only','show_stats','invert_position']) if (c[field] != null && typeof c[field] !== 'boolean') throw new Error(`${field} 必须为布尔值。`);
   for (const field of ['metrics','auxiliary','actions']) if (c[field] != null && (!Array.isArray(c[field]) || c[field].length > 3)) throw new Error(`${field} 最多支持 3 项。`);
   for (const item of [...(c.metrics || []),...(c.auxiliary || [])]) {

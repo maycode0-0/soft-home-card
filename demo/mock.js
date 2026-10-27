@@ -3,9 +3,9 @@ const light=(name,brightness=204)=>({friendly_name:name,brightness,supported_col
 const climate=(name,temperature=26)=>({friendly_name:name,supported_features:385,temperature,current_temperature:24.6,min_temp:16,max_temp:32,target_temp_step:.5,hvac_modes:['off','cool','heat','auto','dry'],hvac_action:'cooling'});
 export function createMock(){
   const states={
-    'sensor.washer':state('sensor.washer','洗涤中',{friendly_name:'阳台洗衣机'}),
+    'sensor.washer':state('sensor.washer','洗涤中',{friendly_name:'阳台洗衣机运行状态'}),
     'sensor.remaining':state('sensor.remaining',27,{unit_of_measurement:'min',friendly_name:'剩余时间'}),
-    'sensor.progress':state('sensor.progress',72),
+    'sensor.progress':state('sensor.progress',72,{friendly_name:'洗涤进度',unit_of_measurement:'%'}),
     'sensor.power':state('sensor.power',1870,{unit_of_measurement:'W',friendly_name:'功率'}),
     'sensor.dryer':state('sensor.dryer','烘干中',{friendly_name:'阳台烘干机'}),
     'sensor.dryer_remaining':state('sensor.dryer_remaining',48,{unit_of_measurement:'min'}),
@@ -53,6 +53,17 @@ export function createMock(){
       if(service==='open_cover')value='opening';if(service==='close_cover')value='closing';if(service==='stop_cover')value=attributes.current_position===0?'closed':'open';
       this.states={...this.states,[id]:state(id,value,attributes)};this.notify?.();
     }};
+  mock.entities={};mock.devices={};
+  for(const c of DEMO_CONFIGS){
+    const id=`demo_${c.device}`;
+    mock.devices[id]={id,name:states[c.entity].attributes.friendly_name,manufacturer:'Soft Home Demo',model:c.device};
+    const ids=[c.entity,c.primary_entity,c.secondary_entity,c.power_entity,c.progress_entity,...(c.auxiliary||[]).map(x=>x.entity)].filter(Boolean);
+    for(const entity_id of ids)mock.entities[entity_id]={entity_id,device_id:id};
+  }
+  mock.devices.washer_two={id:'washer_two',name:'次卧洗衣机',manufacturer:'Soft Home Demo',model:'Mini'};
+  for(const [entity_id,value,friendly_name] of [['sensor.washer_two','idle','运行状态'],['sensor.remaining_two',0,'剩余时间']]){
+    states[entity_id]=state(entity_id,value,{friendly_name});mock.entities[entity_id]={entity_id,device_id:'washer_two'};
+  }
   mock.callService=mock.callService.bind(mock);
   return mock;
 }
