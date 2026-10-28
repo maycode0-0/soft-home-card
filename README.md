@@ -24,7 +24,7 @@
 
 1. 从 [Releases](https://github.com/maycode0-0/soft-home-card/releases/latest) 下载 `soft-home-card.js`，或使用仓库的 `dist/soft-home-card.js`。
 2. 将文件放到 HA 配置目录的 `www/soft-home-card/soft-home-card.js`（常见完整路径为 `/config/www/soft-home-card/soft-home-card.js`）。
-3. 在仪表盘资源中添加 `/local/soft-home-card/soft-home-card.js?v=1.2.0`，类型选择 **JavaScript 模块**。
+3. 在仪表盘资源中添加 `/local/soft-home-card/soft-home-card.js?v=1.2.1`，类型选择 **JavaScript 模块**。
 4. 刷新后添加 Soft Home 卡片，在可视化编辑器里选择实体。
 
 若“资源”入口不可见，先在个人资料中开启高级模式。首次创建 `www` 目录后如出现 404，重启 HA 再访问。手动升级时替换 JS 并更新 URL 的版本参数。
@@ -241,7 +241,7 @@ npm run demo
 2. 在 `CHANGELOG.md` 添加对应版本说明；更新手动安装示例的版本参数。
 3. 运行 `npm run build && npm run check && npm test && npm run test:browser`。
 4. 将源码、版本信息、锁文件和 `dist/soft-home-card.js` 一起提交并推送。
-5. 创建与版本一致的标签，例如 `git tag v1.2.0`，再执行 `git push origin v1.2.0`。
+5. 创建与版本一致的标签，例如 `git tag v1.2.1`，再执行 `git push origin v1.2.1`。
 
 GitHub Actions 会重新构建并检查提交的 JS 是否一致，运行逻辑测试与 Chromium 交互测试。全部通过后才创建 GitHub Release，附上 `soft-home-card.js` 和 `SHA256SUMS`。HACS 根据 Release 显示更新。工作流只使用 GitHub 自带的 `GITHUB_TOKEN`，不需要配置个人令牌。
 
