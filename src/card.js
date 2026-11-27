@@ -28,7 +28,7 @@ export class SoftHomeCard extends HTMLElement {
       }
     },true);
   }
-  setConfig(config){const next=validateConfig(config);if(next.device!==this._config?.device||next.entity!==this._config?.entity||next.features?.event!==this._config?.features?.event){this._history=null;this._historyOpen=false;this._live=false;this._streamElement=null;}this._config=next;this._lastRender='';this._error='';this._interaction=false;this._schedule();}
+  setConfig(config){const next=validateConfig(config);if(next.device!==this._config?.device||next.entity!==this._config?.entity||next.features?.event!==this._config?.features?.event){this._history=null;this._historyOpen=false;this._live=false;this._syncCameraStream(false);}this._config=next;this._lastRender='';this._error='';this._interaction=false;this._schedule();}
   set hass(hass){this._hass=hass;if(this._streamElement)Object.assign(this._streamElement,{hass,stateObj:hass.states?.[this._config?.entity]});this._schedule();}
   get hass(){return this._hass;}
   connectedCallback(){
@@ -46,6 +46,19 @@ export class SoftHomeCard extends HTMLElement {
   _detailsButton(label='查看详情'){
     const text=escapeHTML(label);
     return `<button class="icon-button device-info" data-info data-device-info aria-label="${text}" title="${text}"><ha-icon icon="mdi:cog-outline" aria-hidden="true"></ha-icon></button>`;
+  }
+  _syncCameraStream(show){
+    if(!show){
+      this._streamElement?.remove();
+      this._streamElement=null;
+      return;
+    }
+    if(this._streamElement)return;
+    const stream=document.createElement('ha-camera-stream');
+    Object.assign(stream,{slot:'camera-stream',hass:this._hass,stateObj:this._hass.states?.[this._config.entity],controls:true,muted:true});
+    // Keep the player connected when a control or readout rebuilds the shadow DOM.
+    this._streamElement=stream;
+    this.append(stream);
   }
   _control(control){const E=escapeHTML,busy=this._busy.has(control.id),disabled=busy?'disabled':'';
     if(control.kind==='color')return `<label class="select-control"><span>${E(control.label)}</span><input type="color" data-control="${control.id}" value="${control.value}" aria-label="选择灯光颜色" ${disabled}></label>`;
@@ -111,6 +124,7 @@ export class SoftHomeCard extends HTMLElement {
     const deviceMarkup=!w?deviceLayout(this,v,art,auxButtons+actionButtons):'';
     const openedSections=new Set([...this.shadowRoot.querySelectorAll('details[data-device-section][open]')].map(el=>el.dataset.deviceSection));
     const featureFocus=focused?.hasAttribute('data-feature')?focused.dataset.feature:null;
+    const historyScrollTop=this.shadowRoot.querySelector('.history-list')?.scrollTop;
     this.shadowRoot.innerHTML=w?`<style>${CARD_CSS}${WASHER_CSS}</style>${this._washerMarkup(v,w,art,auxButtons+actionButtons)}`:deviceMarkup?`<style>${CARD_CSS}${DEVICE_CSS}</style>${deviceMarkup}`:`<style>${CARD_CSS}</style><ha-card class="generic-card" style="--accent:var(--soft-${v.accent})" aria-label="${E(v.name)}">
       <header class="header"><button class="icon-button device-icon" data-info title="查看设备详情" aria-label="查看${E(v.name)}详情"><ha-icon icon="${v.icon}"></ha-icon></button><div class="identity"><button class="name" data-info>${E(v.name)}</button><div class="room" title="${E(v.room)}">${E(v.room)}</div></div><span class="status ${!v.online||v.off?'neutral':''}" title="${E(v.status)}">${E(v.status)}</span>${v.caps.power?`<button class="icon-button" data-command="power" aria-label="${v.off?'开启':'关闭'}" ${this._busy.has('power')?'disabled':''}><ha-icon icon="mdi:power" aria-hidden="true"></ha-icon></button>`:''}${this._detailsButton()}</header>
       <section class="generic-overview"><div><span class="generic-kicker">${E(v.primary.label)}</span><strong class="generic-value ${value.length>5||['ON','OFF'].includes(value)?'textual':''}">${E(['ON','OFF'].includes(value)?v.status:value)}<small>${E(unit)}</small></strong><span class="generic-state">${E(v.status)}</span></div><button class="hero ${!v.online?'offline':v.off?'inactive':''}" data-info aria-label="查看${E(v.name)}详情">${art}</button></section>
@@ -140,8 +154,9 @@ export class SoftHomeCard extends HTMLElement {
     for(const el of this.shadowRoot.querySelectorAll('details[data-device-section]'))if(openedSections.has(el.dataset.deviceSection))el.open=true;
     if(deviceMarkup&&washerFocus){const [attribute,value]=washerFocus;const target=attribute==='summary'?this.shadowRoot.querySelector(`details[data-device-section="${focused?.parentElement?.dataset.deviceSection}"] summary`):[...this.shadowRoot.querySelectorAll('[data-info]')].find(el=>el.dataset.info===value);target?.focus({preventScroll:true});}
     if(featureFocus)[...this.shadowRoot.querySelectorAll('[data-feature]')].find(el=>el.dataset.feature===featureFocus&&!el.disabled)?.focus({preventScroll:true});
-    const streamHost=this.shadowRoot.querySelector('[data-stream-host]');
-    if(streamHost){this._streamElement=this._streamElement||document.createElement('ha-camera-stream');Object.assign(this._streamElement,{hass:this._hass,stateObj:this._hass.states?.[c.entity],controls:true,muted:true});streamHost.append(this._streamElement);}
+    const historyList=this.shadowRoot.querySelector('.history-list');
+    if(historyScrollTop&&historyList)historyList.scrollTop=historyScrollTop;
+    this._syncCameraStream(this.shadowRoot.querySelector('slot[name="camera-stream"]')!==null);
   }
   _input(event){const input=event.target,id=input.dataset.control;if(!id||input.type!=='range')return;this._interaction=true;
     const control=buildView(this._hass,this._config).caps.controls.find(x=>x.id===id);const output=this.shadowRoot.querySelector(`[data-output="${id}"]`);

@@ -1,4 +1,4 @@
-/* Soft Home More Info v1.2.3 | Optional global entity dialogs | No runtime dependencies */
+/* Soft Home More Info v1.2.4 | Optional global entity dialogs | No runtime dependencies */
 (() => {
 'use strict';
 // Generated from assets/devices. Do not edit by hand.
@@ -671,14 +671,14 @@ function deviceLayout(card,v,art,extras){
       ${f.snapshot?`<section class="lock-snapshot"><div class="section-caption">${icon('camera-outline')}猫眼抓拍</div><button class="snapshot-button" data-info="${E(f.snapshot.entity)}">${picture?`<img data-device-picture src="${E(picture)}" alt="猫眼最新抓拍" loading="lazy">`:`<span class="media-unavailable">${icon('camera-outline')}${v.online?'查看最新抓拍':'设备离线'}</span>`}</button></section>`:''}
       ${tiles([f.lithium_battery].filter(Boolean))}${section('access','高级功能',d.groups('actions'))}`;
   }else if(c.device==='camera'){
-    const picture=v.online?devicePicture(hass,c.entity):'',ptz=d.groups('ptz');
     const live=card._live&&v.online,liveLabel=live?'暂停实时画面':'播放实时画面';
-    const preview=live?'<div data-stream-host></div>':picture?
+    const picture=!live&&v.online?devicePicture(hass,c.entity):'',ptz=live?d.groups('ptz'):[];
+    const preview=live?'<div data-stream-host><slot name="camera-stream"></slot></div>':picture?
       `<img data-device-picture src="${E(picture)}" alt="${E(v.name)}预览">`:
       '<span class="media-unavailable">画面暂不可用</span>';
     body=`<section class="camera-preview" ${live?'data-playing':''}>
       <div class="camera-frame">${preview}</div>
-      ${status}
+      ${live?'<span class="status">实时预览</span>':status}
       ${v.online?`<button class="camera-live" data-live aria-label="${liveLabel}" title="${liveLabel}">${icon(live?'pause':'play')}</button>`:''}
     </section>
       ${ptz.length?`<section class="ptz-section"><div><span class="section-caption">云台控制</span><p class="device-note">点按调整镜头方向</p></div><div class="ptz-pad">${['ptz_up','ptz_left','ptz_home','ptz_right','ptz_down'].filter(key=>f[key]).map(key=>`<button style="grid-area:${key.replace('ptz_','')}" data-feature="${key}" aria-label="${E(f[key].name)}" ${f[key].disabled||card._busy.has('camera-ptz')?'disabled':''}>${icon(f[key].icon.replace('mdi:',''))}</button>`).join('')}</div></section>`:''}
@@ -836,7 +836,7 @@ const DEVICE_CSS=`
 .lock-summary.secure>ha-icon{color:var(--soft-green)}
 .lock-summary.warning{border-color:#c5751950}
 .lock-safety{display:flex;flex-wrap:wrap;column-gap:12px}
-.lock-safety button{display:flex;align-items:center;gap:3px;background:transparent;border:0;font-size:11px;color:var(--soft-muted);padding:0;min-height:32px}
+.lock-safety button{display:flex;align-items:center;gap:4px;background:transparent;border:0;font-size:11px;color:var(--soft-muted);padding:2px 6px;min-height:32px}
 .lock-safety ha-icon{--mdc-icon-size:14px;flex-shrink:0}
 .lock-art{height:125px}
 .lock-controls{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px;margin-top:8px}
@@ -846,13 +846,13 @@ const DEVICE_CSS=`
 .lock-doorbell ha-icon{--mdc-icon-size:18px;flex-shrink:0;color:var(--soft-muted)}
 .lock-doorbell>span{min-width:0;text-align:left}
 .lock-doorbell small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--soft-muted)}
-.recent-event{display:flex;align-items:center;gap:10px;width:100%;border:0;padding:10px 0;background:transparent;text-align:left}
+.recent-event{display:flex;align-items:center;gap:10px;width:100%;border:0;margin-block:8px;padding:10px 12px;background:transparent;text-align:left}
 .recent-event-icon{display:grid;place-items:center;width:40px;height:40px;flex-shrink:0;border-radius:12px;background:var(--soft-panel);color:var(--soft-muted)}
 .recent-event-icon ha-icon{--mdc-icon-size:19px}
 .recent-event strong{display:block;font-size:15px;color:var(--soft-text);line-height:1.35}
 .event-date{display:block;font-size:11px;color:var(--soft-muted)}
-.history-heading{display:flex;align-items:center;gap:4px;border-top:1px solid var(--soft-line);padding-block:4px}
-.history-heading button{display:flex;align-items:center;gap:8px;border:0;background:transparent;font-size:13px;font-weight:600;padding:0 10px}
+.history-heading{display:flex;align-items:center;gap:8px;border-top:1px solid var(--soft-line);padding-block:8px}
+.history-heading button{display:flex;align-items:center;gap:8px;border:0;background:transparent;font-size:13px;font-weight:600;padding:0 12px}
 .history-heading [data-history-refresh]{width:44px;flex-shrink:0;justify-content:center;padding:0}
 .history-heading ha-icon{--mdc-icon-size:18px;color:var(--soft-muted)}
 .history-heading [data-history]{flex:1;justify-content:flex-start}
@@ -871,20 +871,19 @@ const DEVICE_CSS=`
 .lock-snapshot .section-caption ha-icon{color:var(--soft-muted)}
 .snapshot-button{width:100%;display:block;overflow:hidden;padding:0;border:1px solid var(--soft-line);border-radius:12px}
 .snapshot-button img{display:block;width:100%;aspect-ratio:16/9;max-height:210px;object-fit:cover}
-.door_lock-card [data-device-section=access]>summary{padding-inline:0 6px}
 .door_lock-card [data-device-section=access] .feature-grid{grid-template-columns:minmax(0,1fr)}
 .media-unavailable{display:flex;align-items:center;justify-content:center;gap:8px;min-height:100px;color:var(--soft-muted);font-size:11px}
 .camera-preview{position:relative;margin-top:22px;border-radius:17px;overflow:hidden;box-shadow:var(--soft-shadow);border:1px solid var(--soft-edge);background:var(--soft-panel)}
-.camera-frame{aspect-ratio:16/10;background:var(--soft-bg);overflow:hidden}
-.camera-frame img,.camera-frame [data-stream-host],.camera-frame ha-camera-stream{display:block;width:100%;height:100%}.camera-frame img{object-fit:cover}
+.camera-frame{aspect-ratio:16/10;background:var(--soft-bg);overflow:hidden;isolation:isolate}
+.camera-frame img,.camera-frame [data-stream-host],slot[name=camera-stream]::slotted(ha-camera-stream){display:block;width:100%;height:100%}.camera-frame img{object-fit:cover}
 .camera-frame .media-unavailable{height:100%;min-height:0}
-.camera-preview .status{position:absolute;inset-block-start:10px;inset-inline-end:10px;display:flex;max-width:calc(100% - 20px);font-size:11px;pointer-events:none}
-.camera-live{position:absolute;inset:0;margin:auto;width:44px;height:44px;padding:0;display:grid;place-items:center;border-radius:50%;color:#f8fbff;background:#172438df;border-color:#f8fbff66}
+.camera-preview .status{position:absolute;z-index:1;inset-block-start:10px;inset-inline-end:10px;display:flex;max-width:calc(100% - 20px);font-size:11px;pointer-events:none}
+.camera-live{position:absolute;z-index:1;inset:0;margin:auto;width:44px;height:44px;padding:0;display:grid;place-items:center;border-radius:50%;color:#f8fbff;background:#172438df;border-color:#f8fbff66}
 .camera-live:hover:not(:disabled){background:#172438}.camera-live:focus-visible{outline-color:#f8fbff;outline-offset:2px}
 @media(hover:hover) and (pointer:fine){
   .camera-preview[data-playing]:not(:hover) .camera-live:not(:focus-visible){opacity:0;pointer-events:none}
 }
-.ptz-section{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0}.ptz-section .section-caption{margin:0 0 5px}.ptz-pad{display:grid;grid-template-areas:'. up .' 'left home right' '. down .';grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);gap:3px;background:var(--soft-panel);padding:8px;border-radius:50%;border:1px solid var(--soft-edge);box-shadow:var(--soft-shadow);flex-shrink:0}.ptz-pad button{border:0;background:transparent;display:flex;align-items:center;justify-content:center;padding:5px;min-height:0;border-radius:50%}.ptz-pad [data-feature=ptz_home]{background:var(--soft-bg);color:var(--accent)}.ptz-pad ha-icon{--mdc-icon-size:19px}
+.ptz-section{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0;padding-inline:8px}.ptz-section .section-caption{margin:0 0 5px}.ptz-pad{display:grid;grid-template-areas:'. up .' 'left home right' '. down .';grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);gap:3px;background:var(--soft-panel);padding:8px;border-radius:50%;border:1px solid var(--soft-edge);box-shadow:var(--soft-shadow);flex-shrink:0}.ptz-pad button{border:0;background:transparent;display:flex;align-items:center;justify-content:center;padding:5px;min-height:0;border-radius:50%}.ptz-pad [data-feature=ptz_home]{background:var(--soft-bg);color:var(--accent)}.ptz-pad ha-icon{--mdc-icon-size:19px}
 .vacuum-controls [data-command=start]{background:var(--device-action);border-color:var(--device-action)}
 @container(max-width:340px){.device-card{padding:17px}.device-header .name{font-size:18px}.device-header .status{max-width:79px}.device-header .icon-button{width:44px;height:44px}.device-value{font-size:42px}.device-overview{grid-template-columns:minmax(0,1fr) minmax(0,45%);padding:13px;margin:17px 0}.device-card .control-surface{padding:13px}.feature-tile{gap:6px;padding:10px 8px}.feature-tile>ha-icon{--mdc-icon-size:17px}.feature-tile .tile-trailing ha-icon{--mdc-icon-size:18px}.sensor-reading .device-value{font-size:35px}.sensor-reading .device-value small{font-size:13px}.fridge-overview{gap:10px}.temperature-zone{padding:10px}.cover-readout .device-value{font-size:32px}.mini-reading{gap:3px}.mini-reading strong{font-size:13px}}
 @container(max-width:260px){.device-card{padding:14px}.device-header .name{font-size:16px}.device-header .status{display:none}.feature-grid{grid-template-columns:1fr}.device-value{font-size:34px}.device-value small{font-size:14px}.device-overview{min-height:145px;grid-template-columns:minmax(0,1fr) minmax(0,44%);padding:10px;gap:3px}.device-overview .hero{height:140px}.temperature-zone .device-value{font-size:25px}.sensor-reading .device-value{font-size:30px}.fridge-overview{grid-template-columns:minmax(0,40%) minmax(0,1fr)}.fridge-overview .hero{height:210px}.cover-readout .device-value{font-size:27px}.battery-badge{padding:4px;font-size:11px}.device-state{font-size:22px}.device-card .stepper output{font-size:19px}.device-card .stepper button{flex-basis:44px}.device-card .cover-controls .button-row button{font-size:10px;padding:5px 2px}.environment-readings{grid-template-columns:1fr}.mini-reading{justify-content:flex-start;padding:8px 0}.mini-reading+.mini-reading{border-left:0;border-top:1px solid var(--soft-line)}.mini-reading>span{display:flex;justify-content:space-between;width:100%;align-items:center}.ptz-section{flex-wrap:wrap}.sensor-footer{flex-wrap:wrap}.recent-event{flex-wrap:wrap}}
@@ -1001,7 +1000,7 @@ class SoftHomeCard extends HTMLElement {
       }
     },true);
   }
-  setConfig(config){const next=validateConfig(config);if(next.device!==this._config?.device||next.entity!==this._config?.entity||next.features?.event!==this._config?.features?.event){this._history=null;this._historyOpen=false;this._live=false;this._streamElement=null;}this._config=next;this._lastRender='';this._error='';this._interaction=false;this._schedule();}
+  setConfig(config){const next=validateConfig(config);if(next.device!==this._config?.device||next.entity!==this._config?.entity||next.features?.event!==this._config?.features?.event){this._history=null;this._historyOpen=false;this._live=false;this._syncCameraStream(false);}this._config=next;this._lastRender='';this._error='';this._interaction=false;this._schedule();}
   set hass(hass){this._hass=hass;if(this._streamElement)Object.assign(this._streamElement,{hass,stateObj:hass.states?.[this._config?.entity]});this._schedule();}
   get hass(){return this._hass;}
   connectedCallback(){
@@ -1019,6 +1018,19 @@ class SoftHomeCard extends HTMLElement {
   _detailsButton(label='查看详情'){
     const text=escapeHTML(label);
     return `<button class="icon-button device-info" data-info data-device-info aria-label="${text}" title="${text}"><ha-icon icon="mdi:cog-outline" aria-hidden="true"></ha-icon></button>`;
+  }
+  _syncCameraStream(show){
+    if(!show){
+      this._streamElement?.remove();
+      this._streamElement=null;
+      return;
+    }
+    if(this._streamElement)return;
+    const stream=document.createElement('ha-camera-stream');
+    Object.assign(stream,{slot:'camera-stream',hass:this._hass,stateObj:this._hass.states?.[this._config.entity],controls:true,muted:true});
+    // Keep the player connected when a control or readout rebuilds the shadow DOM.
+    this._streamElement=stream;
+    this.append(stream);
   }
   _control(control){const E=escapeHTML,busy=this._busy.has(control.id),disabled=busy?'disabled':'';
     if(control.kind==='color')return `<label class="select-control"><span>${E(control.label)}</span><input type="color" data-control="${control.id}" value="${control.value}" aria-label="选择灯光颜色" ${disabled}></label>`;
@@ -1084,6 +1096,7 @@ class SoftHomeCard extends HTMLElement {
     const deviceMarkup=!w?deviceLayout(this,v,art,auxButtons+actionButtons):'';
     const openedSections=new Set([...this.shadowRoot.querySelectorAll('details[data-device-section][open]')].map(el=>el.dataset.deviceSection));
     const featureFocus=focused?.hasAttribute('data-feature')?focused.dataset.feature:null;
+    const historyScrollTop=this.shadowRoot.querySelector('.history-list')?.scrollTop;
     this.shadowRoot.innerHTML=w?`<style>${CARD_CSS}${WASHER_CSS}</style>${this._washerMarkup(v,w,art,auxButtons+actionButtons)}`:deviceMarkup?`<style>${CARD_CSS}${DEVICE_CSS}</style>${deviceMarkup}`:`<style>${CARD_CSS}</style><ha-card class="generic-card" style="--accent:var(--soft-${v.accent})" aria-label="${E(v.name)}">
       <header class="header"><button class="icon-button device-icon" data-info title="查看设备详情" aria-label="查看${E(v.name)}详情"><ha-icon icon="${v.icon}"></ha-icon></button><div class="identity"><button class="name" data-info>${E(v.name)}</button><div class="room" title="${E(v.room)}">${E(v.room)}</div></div><span class="status ${!v.online||v.off?'neutral':''}" title="${E(v.status)}">${E(v.status)}</span>${v.caps.power?`<button class="icon-button" data-command="power" aria-label="${v.off?'开启':'关闭'}" ${this._busy.has('power')?'disabled':''}><ha-icon icon="mdi:power" aria-hidden="true"></ha-icon></button>`:''}${this._detailsButton()}</header>
       <section class="generic-overview"><div><span class="generic-kicker">${E(v.primary.label)}</span><strong class="generic-value ${value.length>5||['ON','OFF'].includes(value)?'textual':''}">${E(['ON','OFF'].includes(value)?v.status:value)}<small>${E(unit)}</small></strong><span class="generic-state">${E(v.status)}</span></div><button class="hero ${!v.online?'offline':v.off?'inactive':''}" data-info aria-label="查看${E(v.name)}详情">${art}</button></section>
@@ -1113,8 +1126,9 @@ class SoftHomeCard extends HTMLElement {
     for(const el of this.shadowRoot.querySelectorAll('details[data-device-section]'))if(openedSections.has(el.dataset.deviceSection))el.open=true;
     if(deviceMarkup&&washerFocus){const [attribute,value]=washerFocus;const target=attribute==='summary'?this.shadowRoot.querySelector(`details[data-device-section="${focused?.parentElement?.dataset.deviceSection}"] summary`):[...this.shadowRoot.querySelectorAll('[data-info]')].find(el=>el.dataset.info===value);target?.focus({preventScroll:true});}
     if(featureFocus)[...this.shadowRoot.querySelectorAll('[data-feature]')].find(el=>el.dataset.feature===featureFocus&&!el.disabled)?.focus({preventScroll:true});
-    const streamHost=this.shadowRoot.querySelector('[data-stream-host]');
-    if(streamHost){this._streamElement=this._streamElement||document.createElement('ha-camera-stream');Object.assign(this._streamElement,{hass:this._hass,stateObj:this._hass.states?.[c.entity],controls:true,muted:true});streamHost.append(this._streamElement);}
+    const historyList=this.shadowRoot.querySelector('.history-list');
+    if(historyScrollTop&&historyList)historyList.scrollTop=historyScrollTop;
+    this._syncCameraStream(this.shadowRoot.querySelector('slot[name="camera-stream"]')!==null);
   }
   _input(event){const input=event.target,id=input.dataset.control;if(!id||input.type!=='range')return;this._interaction=true;
     const control=buildView(this._hass,this._config).caps.controls.find(x=>x.id===id);const output=this.shadowRoot.querySelector(`[data-output="${id}"]`);

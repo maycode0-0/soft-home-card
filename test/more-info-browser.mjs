@@ -66,33 +66,55 @@ try{
     await page.waitForFunction(()=>!history.state?.dialog);
     assert.equal(await dialog.locator('dialog[open]').count(),0);
   });
-  await check('camera details separate the preview control from the single native settings entry',async()=>{
+  await check('camera details keep live playback connected during PTZ and offer a single native settings entry',async()=>{
     const entityId='camera.balcony';
     await page.evaluate(id=>{
       const {mock}=moreInfoDemo;
       mock.states[id]={...mock.states[id],state:'idle'};
+      window.softHomeMoreInfoConfig={entities:{[id]:{features:{ptz_left:'button.camera_ptz_left'}}}};
       mock.notify();
     },entityId);
     await emit({entityId});
     await dialog.locator('.camera-preview').waitFor();
     assert.equal(await dialog.locator('.camera-preview .status').innerText(),'待机');
     assert.equal(await dialog.getByText('待机',{exact:true}).filter({visible:true}).count(),1);
+    assert.equal(await dialog.locator('.ptz-pad').count(),0);
     assert.equal(await dialog.getByRole('button',{name:'原生详情',exact:true}).count(),1);
     assert.equal(await dialog.getByRole('button',{name:'播放实时画面',exact:true}).count(),1);
     const gear=dialog.locator('.dialog-header').getByRole('button',{name:'原生详情',exact:true});
     assert.equal(await gear.locator('ha-icon').getAttribute('icon'),'mdi:cog-outline');
-    await page.evaluate(()=>{if(!customElements.get('ha-camera-stream'))customElements.define('ha-camera-stream',class extends HTMLElement{});});
+    await page.evaluate(()=>customElements.define('ha-camera-stream',class extends HTMLElement{
+      connectedCallback(){this.connections=(this.connections||0)+1;}
+      disconnectedCallback(){this.disconnections=(this.disconnections||0)+1;}
+    }));
     await dialog.getByRole('button',{name:'播放实时画面',exact:true}).click();
     const stream=dialog.locator('ha-camera-stream');
     await stream.waitFor({state:'attached'});
     assert.equal(await stream.evaluate(el=>el.stateObj.entity_id),entityId);
+    assert.equal(await dialog.locator('.camera-preview .status').innerText(),'实时预览');
+    await stream.evaluate(el=>{window.originalDialogPlayer=el;});
+    await dialog.locator('[data-feature=ptz_left]').click();
+    await page.waitForFunction(()=>moreInfoDemo.mock.calls.at(-1)?.target?.entity_id==='button.camera_ptz_left');
+    await page.evaluate(id=>{
+      const {mock}=moreInfoDemo;
+      mock.states[id]={...mock.states[id],last_updated:new Date().toISOString()};
+      mock.notify();
+    },entityId);
+    await dialog.locator('[data-feature=ptz_left]:enabled').waitFor();
+    assert.equal(await stream.evaluate(el=>el===originalDialogPlayer&&el.connections===1&&!el.disconnections),true);
+    assert.equal(await dialog.locator('.camera-preview .status').innerText(),'实时预览');
+    await dialog.locator('.camera-preview').hover({position:{x:12,y:12}});
     await dialog.getByRole('button',{name:'暂停实时画面',exact:true}).click();
     await stream.waitFor({state:'detached'});
+    assert.equal(await dialog.locator('.ptz-pad').count(),0);
+    assert.equal(await dialog.locator('.camera-preview .status').innerText(),'待机');
+    assert.equal(await page.evaluate(()=>originalDialogPlayer.disconnections),1);
     const count=await page.evaluate(()=>moreInfoDemo.root.nativeEvents.length);
     await gear.click();
     await page.waitForFunction(count=>moreInfoDemo.root.nativeEvents.length===count+1,count);
     assert.deepEqual(await page.evaluate(()=>moreInfoDemo.root.nativeEvents.at(-1)),{entityId});
     await close();
+    await page.evaluate(()=>{window.softHomeMoreInfoConfig={};});
   });
   await check('the settings/entity-list entry is replaced by the same global handler',async()=>{
     await page.locator('[data-page=settings]').click();await open('climate.ac','[data-content=settings]');
@@ -153,6 +175,18 @@ try{
     await dialog.getByRole('button',{name:'上锁',exact:true}).waitFor();
     assert.equal(await dialog.locator('.lock-summary.warning').count(),1);
     assert.equal(await page.evaluate(()=>moreInfoDemo.mock.calls.at(-1).target.entity_id),'lock.front_door');await close();
+  });
+  await check('door lock details leave room around highlighted actions and ignore empty openings',async()=>{
+    await open('lock.front_door');
+    const recent=dialog.locator('.recent-event'),history=dialog.locator('[data-history]');
+    assert.equal(await recent.locator('strong').innerText(),'—');
+    assert.equal(await recent.locator('.event-date').count(),0);
+    assert.equal(await recent.evaluate(el=>getComputedStyle(el).paddingInlineStart),'12px');
+    assert.equal(await history.evaluate(el=>getComputedStyle(el.parentElement).paddingBlockStart),'8px');
+    await history.click();
+    await dialog.locator('.history-item').first().waitFor();
+    assert.equal(await recent.locator('strong').innerText(),'内开');
+    await close();
   });
   await check('main lights render a six-lamp chandelier and their brightness still targets the main light',async()=>{
     await open('light.main');

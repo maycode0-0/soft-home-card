@@ -93,14 +93,14 @@ export function deviceLayout(card,v,art,extras){
       ${f.snapshot?`<section class="lock-snapshot"><div class="section-caption">${icon('camera-outline')}猫眼抓拍</div><button class="snapshot-button" data-info="${E(f.snapshot.entity)}">${picture?`<img data-device-picture src="${E(picture)}" alt="猫眼最新抓拍" loading="lazy">`:`<span class="media-unavailable">${icon('camera-outline')}${v.online?'查看最新抓拍':'设备离线'}</span>`}</button></section>`:''}
       ${tiles([f.lithium_battery].filter(Boolean))}${section('access','高级功能',d.groups('actions'))}`;
   }else if(c.device==='camera'){
-    const picture=v.online?devicePicture(hass,c.entity):'',ptz=d.groups('ptz');
     const live=card._live&&v.online,liveLabel=live?'暂停实时画面':'播放实时画面';
-    const preview=live?'<div data-stream-host></div>':picture?
+    const picture=!live&&v.online?devicePicture(hass,c.entity):'',ptz=live?d.groups('ptz'):[];
+    const preview=live?'<div data-stream-host><slot name="camera-stream"></slot></div>':picture?
       `<img data-device-picture src="${E(picture)}" alt="${E(v.name)}预览">`:
       '<span class="media-unavailable">画面暂不可用</span>';
     body=`<section class="camera-preview" ${live?'data-playing':''}>
       <div class="camera-frame">${preview}</div>
-      ${status}
+      ${live?'<span class="status">实时预览</span>':status}
       ${v.online?`<button class="camera-live" data-live aria-label="${liveLabel}" title="${liveLabel}">${icon(live?'pause':'play')}</button>`:''}
     </section>
       ${ptz.length?`<section class="ptz-section"><div><span class="section-caption">云台控制</span><p class="device-note">点按调整镜头方向</p></div><div class="ptz-pad">${['ptz_up','ptz_left','ptz_home','ptz_right','ptz_down'].filter(key=>f[key]).map(key=>`<button style="grid-area:${key.replace('ptz_','')}" data-feature="${key}" aria-label="${E(f[key].name)}" ${f[key].disabled||card._busy.has('camera-ptz')?'disabled':''}>${icon(f[key].icon.replace('mdi:',''))}</button>`).join('')}</div></section>`:''}

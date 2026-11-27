@@ -324,20 +324,25 @@ try{
       mock.callApi=async(...args)=>{
         lockHistoryFixture.requests++;
         const [items]=await callApi(...args);
-        return [[...items,{...reset,state:' None '},reset]];
+        const older=Array.from({length:6},(_,i)=>({...items[0],last_changed:new Date(Date.now()-(9-i)*3600000).toISOString()}));
+        return [[...older,...items,{...reset,state:' None '},reset]];
       };
       mock.notify();
     });
     assert.equal(await page.evaluate(()=>lockHistoryFixture.requests),0);
     assert.equal(await lock.locator('.recent-event strong').innerText(),'—');
     assert.equal(await lock.locator('.recent-event .event-date').count(),0);
+    assert.equal(await lock.locator('.recent-event').evaluate(el=>getComputedStyle(el).paddingInlineStart),'12px');
     await lock.locator('[data-history]').click();
     await lock.locator('.history-count').waitFor();
-    assert.equal(await lock.locator('.history-item').count(),4);
-    assert.equal(await lock.locator('.history-count').innerText(),'4');
+    assert.equal(await lock.locator('.history-item').count(),10);
+    assert.equal(await lock.locator('.history-count').innerText(),'10');
     assert.equal(await lock.locator('.recent-event strong').innerText(),'内开');
+    const historyList=lock.locator('.history-list');
+    await historyList.evaluate(el=>{el.scrollTop=50;});
     await evaluate(()=>{mock.states['sensor.door_lock_battery']={...mock.states['sensor.door_lock_battery'],state:'59'};mock.notify();});
-    assert.equal(await lock.locator('.history-item').count(),4);
+    assert.equal(await lock.locator('.history-item').count(),10);
+    assert.equal(await historyList.evaluate(el=>el.scrollTop),50);
     await evaluate(()=>{
       const {entity,original,callApi}=lockHistoryFixture;
       mock.states[entity]=original;
@@ -351,8 +356,10 @@ try{
     const gear=camera.locator('.header').getByRole('button',{name:'查看录像与设备详情'});
     const play=preview.getByRole('button',{name:'播放实时画面',exact:true});
     const pause=preview.getByRole('button',{name:'暂停实时画面',exact:true});
+    const stream=camera.locator('ha-camera-stream');
     assert.equal(await camera.locator('.status').count(),1);
     assert.equal(await preview.locator('.status').innerText(),'录像中');
+    assert.equal(await camera.locator('.ptz-pad').count(),0);
     assert.equal(await play.innerText(),'');
     const frame=await preview.locator('.camera-frame').boundingBox(),button=await play.boundingBox();
     assert.ok(frame&&button&&Math.abs(frame.x+frame.width/2-button.x-button.width/2)<1);
@@ -360,16 +367,29 @@ try{
     await gear.click();assert.equal(await page.evaluate(()=>lastMoreInfo),'camera.balcony');
     await camera.locator('img[data-device-picture]').dispatchEvent('error');
     assert.equal(await camera.getByText('画面暂不可用',{exact:true}).isVisible(),true);
-    await camera.getByRole('button',{name:'向左',exact:true}).click();await wait();
-    assert.deepEqual(await page.evaluate(()=>mock.calls.at(-1)),{domain:'button',service:'press',data:{},target:{entity_id:'button.camera_ptz_left'}});
     await camera.locator('[data-device-section=playback] summary').click();
     await camera.locator('[data-info="date.camera_playback_date"]').click();assert.equal(await page.evaluate(()=>lastMoreInfo),'date.camera_playback_date');
     await camera.locator('[data-feature=query]').click();await wait();assert.equal(await page.evaluate(()=>mock.calls.at(-1).target.entity_id),'button.camera_query_recordings');
     await play.click();assert.equal(await page.evaluate(()=>lastMoreInfo),'camera.balcony');
-    await page.evaluate(()=>customElements.define('ha-camera-stream',class extends HTMLElement{}));
+    await evaluate(()=>{
+      customElements.define('ha-camera-stream',class extends HTMLElement{
+        connectedCallback(){this.connections=(this.connections||0)+1;}
+        disconnectedCallback(){this.disconnections=(this.disconnections||0)+1;}
+      });
+      mock.states['camera.balcony']={...mock.states['camera.balcony'],state:'idle'};
+      mock.notify();
+    });
+    assert.equal(await preview.locator('.status').innerText(),'待机');
     await play.click();await pause.waitFor();
-    assert.equal(await page.evaluate(()=>cards[22].shadowRoot.querySelector('ha-camera-stream').stateObj.entity_id),'camera.balcony');
-    assert.equal(await page.evaluate(()=>cards[22].shadowRoot.querySelector('ha-camera-stream').controls),true);
+    assert.equal(await preview.locator('.status').innerText(),'实时预览');
+    assert.equal(await stream.evaluate(el=>el.stateObj.entity_id),'camera.balcony');
+    assert.equal(await stream.evaluate(el=>el.controls&&el.assignedSlot?.name==='camera-stream'),true);
+    await stream.evaluate(el=>{window.originalCameraPlayer=el;});
+    await camera.getByRole('button',{name:'向左',exact:true}).click();await wait();
+    assert.deepEqual(await page.evaluate(()=>mock.calls.at(-1)),{domain:'button',service:'press',data:{},target:{entity_id:'button.camera_ptz_left'}});
+    await evaluate(()=>{mock.states['camera.balcony']={...mock.states['camera.balcony'],last_updated:new Date().toISOString()};mock.notify();});
+    assert.equal(await stream.evaluate(el=>el===originalCameraPlayer&&el.connections===1&&!el.disconnections),true);
+    assert.equal(await preview.locator('.status').innerText(),'实时预览');
     assert.equal(await pause.locator('ha-icon').getAttribute('icon'),'mdi:pause');
     await page.mouse.move(0,0);
     assert.equal(await pause.evaluate(el=>getComputedStyle(el).opacity),'0');
@@ -380,11 +400,16 @@ try{
     await page.keyboard.press('Tab');
     assert.equal(await pause.evaluate(el=>el.getRootNode().activeElement===el&&getComputedStyle(el).opacity==='1'),true);
     await evaluate(()=>mock.notify());
-    assert.equal(await page.evaluate(()=>cards[22].shadowRoot.querySelector('ha-camera-stream').hass===cards[22].hass),true);
-    await page.keyboard.press('Enter');await play.waitFor();assert.equal(await camera.locator('ha-camera-stream').count(),0);
+    assert.equal(await stream.evaluate(el=>el.hass===cards[22].hass),true);
+    await page.keyboard.press('Enter');await play.waitFor();
+    assert.equal(await stream.count(),0);
+    assert.equal(await camera.locator('.ptz-pad').count(),0);
+    assert.equal(await preview.locator('.status').innerText(),'待机');
+    assert.equal(await page.evaluate(()=>originalCameraPlayer.disconnections),1);
   });
-  await check('ONVIF camera controls appear when PTZ loads and serialize movement',async()=>{
+  await check('ONVIF controls appear during preview and serialize movement without reconnecting the player',async()=>{
     const camera=page.locator('soft-home-card').nth(22);
+    const stream=camera.locator('ha-camera-stream');
     await evaluate(()=>{
       const entity='camera.tp_ipc_mainstream';
       const config=cards[22]._config;
@@ -396,7 +421,11 @@ try{
     });
     assert.equal(await camera.locator('.ptz-pad button').count(),0);
     await evaluate(()=>{mock.services.onvif={ptz:{}};mock.notify();});
+    assert.equal(await camera.locator('.ptz-pad button').count(),0);
+    await camera.getByRole('button',{name:'播放实时画面',exact:true}).click();
+    await camera.locator('.ptz-pad').waitFor();
     assert.equal(await camera.locator('.ptz-pad button').count(),4);
+    await stream.evaluate(el=>{window.onvifCameraPlayer=el;});
     await page.evaluate(()=>{
       mock.callService=async function(...args){
         this.calls.push({domain:args[0],service:args[1],data:args[2],target:args[3]});
@@ -408,15 +437,19 @@ try{
       root.querySelector('[data-feature=ptz_up]').click();
     });
     await camera.locator('[data-feature=ptz_up]:disabled').waitFor();
+    assert.equal(await stream.evaluate(el=>el===onvifCameraPlayer&&el.connections===1&&!el.disconnections),true);
     assert.deepEqual(await page.evaluate(()=>mock.calls.filter(call=>call.domain==='onvif')),[
       {domain:'onvif',service:'ptz',data:{pan:'LEFT',move_mode:'ContinuousMove',distance:0.5,continuous_duration:0.4},target:{entity_id:'camera.tp_ipc_mainstream'}},
     ]);
     await evaluate(()=>{ptzTest.finish();mock.callService=ptzTest.callService;});
     assert.equal(await camera.locator('[data-feature=ptz_up]').isEnabled(),true);
+    assert.equal(await stream.evaluate(el=>el===onvifCameraPlayer&&el.connections===1&&!el.disconnections),true);
     await evaluate(()=>{
       delete mock.states['camera.tp_ipc_mainstream'];delete mock.entities['camera.tp_ipc_mainstream'];delete mock.services.onvif;
       cards[22].setConfig(ptzTest.config);mock.notify();
     });
+    assert.equal(await stream.count(),0);
+    assert.equal(await page.evaluate(()=>onvifCameraPlayer.disconnections),1);
   });
   await check('new device editor binds camera roles and clears nested fields on device changes',async()=>{
     await page.getByRole('button',{name:'打开可视化编辑器'}).click();
@@ -455,12 +488,19 @@ try{
     await page.getByRole('button',{name:'◐ 深色',exact:true}).click();await wait();
     assert.equal(await page.locator('soft-home-card[dark]').count(),9);
     await page.screenshot({path:path.join(root,'test-results/redesign-dark.png'),fullPage:true});
+    const camera=page.locator('soft-home-card').filter({has:page.locator('.camera-preview')});
+    const stream=camera.locator('ha-camera-stream');
+    await page.evaluate(()=>customElements.define('ha-camera-stream',class extends HTMLElement{}));
+    await camera.getByRole('button',{name:'播放实时画面',exact:true}).click();
+    await stream.waitFor();
     await page.getByRole('button',{name:'模拟离线',exact:true}).click();await wait();
-    assert.equal(await page.locator('soft-home-card [data-feature=ptz_left]').isDisabled(),true);
+    assert.equal(await camera.locator('.ptz-pad').count(),0);
+    assert.equal(await stream.count(),0);
     assert.equal(await page.locator('soft-home-card img').count(),0);
     await page.getByRole('button',{name:'模拟离线',exact:true}).click();await wait();
     await page.getByRole('button',{name:'只读模式',exact:true}).click();await wait();
     assert.equal(await page.locator('soft-home-card [data-command]').count(),0);
+    assert.equal(await camera.locator('[data-feature=ptz_left]').isDisabled(),true);
     await page.getByRole('button',{name:'只读模式',exact:true}).click();await wait();
     for(const width of [375,280]){
       await page.setViewportSize({width,height:900});
