@@ -1,5 +1,5 @@
 import { escapeHTML, readMetric, number, DOMAIN } from './model.js';
-import { deviceView, devicePicture, LIGHT_DEVICES, COVER_DEVICES } from './devices.js';
+import { deviceView, devicePicture, doorEventLabel, LIGHT_DEVICES, COVER_DEVICES } from './devices.js';
 
 export function deviceLayout(card,v,art,extras){
   const c=card._config,hass=card._hass,E=escapeHTML,d=deviceView(hass,c,v),f=d.fields;
@@ -8,6 +8,7 @@ export function deviceLayout(card,v,art,extras){
   const chevron=icon('chevron-down');
   const main=hass.states?.[c.entity],attrs=main?.attributes||{};
   const statusText=v.online&&['refrigerator','temperature_humidity'].includes(c.device)?'在线':v.status;
+  const status=`<span class="status ${!v.online||v.off?'neutral':''}">${E(statusText)}</span>`;
   const hero=(className='')=>`<button class="hero device-art ${className} ${!v.online?'offline':v.off?'inactive':''}" data-info aria-label="查看${E(v.name)}详情">${['refrigerator','door_lock'].includes(c.device)?art.replace('viewBox="0 0 320 210"','viewBox="75 0 170 210"'):art}</button>`;
   const value=(metric,cls='')=>{const toggle=['ON','OFF'].includes(metric?.text);return `<strong class="device-value ${cls} ${toggle?'textual':''}">${E(toggle?v.status:metric?.text||'—')}<small>${E(metric?.unit||'')}</small></strong>`;};
   const controls=list=>list.map(control=>card._control(control)).join('');
@@ -40,7 +41,7 @@ export function deviceLayout(card,v,art,extras){
   }else if(c.device==='refrigerator'){
     const zones=[f.fridge_temperature||{...v.primary,entity:c.primary_entity||c.entity,name:'冷藏室'},f.freezer_temperature||(v.secondary?{...v.secondary,name:'冷冻室'}:null),f.variable_temperature].filter(Boolean);
     body=`<section class="fridge-overview">${hero()}<div class="temperature-zones">${zones.map((m,i)=>`<button class="temperature-zone" data-info="${E(m.entity)}"><span>${icon(i===1?'snowflake':'thermometer')}${E(m.name)}</span>${value(v.online?m:{text:'—'})}</button>`).join('')}</div></section>
-      ${d.groups('settings').length?(c.compact?section('fridge-settings','温区与保鲜设置',d.groups('settings')):`<div class="section-caption">温区与保鲜设置</div>${tiles(d.groups('settings'))}`):'<button class="device-detail-link" data-info>查看温区设置 ›</button>'}
+      ${d.groups('settings').length?(c.compact?section('fridge-settings','温区与保鲜设置',d.groups('settings')):`<div class="section-caption">温区与保鲜设置</div>${tiles(d.groups('settings'))}`):''}
       <div class="device-footnote">${icon('information-outline')}实测温度与设定温度分别显示</div>`;
   }else if(c.device==='temperature_humidity'){
     const temperature={...v.primary,entity:c.primary_entity||c.entity};
@@ -52,11 +53,11 @@ export function deviceLayout(card,v,art,extras){
     const temperaturePresets=kelvin?`<div class="temperature-presets" aria-label="快捷色温">${[kelvin.min,Math.max(kelvin.min,Math.min(kelvin.max,4000)),kelvin.max].filter((n,i,a)=>a.indexOf(n)===i).map((n,i)=>`<button data-command="color_temperature" data-value="${n}" aria-pressed="${Math.abs(kelvin.value-n)<50}" ${card._busy.has('color_temperature')?'disabled':''}><i style="--swatch:${['#f4be85','#efe6ce','#c6dff4'][i]}"></i><span>${['暖光','自然光','冷光'][i]}</span><small>${n} K</small></button>`).join('')}</div>`:'';
     const advanced=controls(v.caps.controls.filter(x=>x.id!=='brightness'))+brightnessPresets+temperaturePresets;
     body=`<section class="device-overview light-overview"><div><span class="device-kicker">${E(v.primary.label)}</span>${value(v.primary)}<span class="device-note">${v.off?'灯光已关闭':E(v.status)}</span></div>${hero()}</section>
-      ${v.caps.controls.length?`<section class="control-surface light-controls">${c.compact?controls(v.caps.controls.filter(x=>x.id==='brightness')):controls(v.caps.controls)+brightnessPresets+temperaturePresets}</section>${c.compact?more('light-settings','快捷亮度与灯光设置',advanced):''}`:'<button class="device-detail-link" data-info>查看灯光详情 ›</button>'}`;
+      ${v.caps.controls.length?`<section class="control-surface light-controls">${c.compact?controls(v.caps.controls.filter(x=>x.id==='brightness')):controls(v.caps.controls)+brightnessPresets+temperaturePresets}</section>${c.compact?more('light-settings','快捷亮度与灯光设置',advanced):''}`:''}`;
   }else if(COVER_DEVICES.includes(c.device)){
     const position=v.caps.controls.find(x=>x.id==='position');
     body=`<section class="cover-overview">${hero()}<div class="cover-readout"><span class="device-kicker">${E(v.primary.label)}</span>${value(v.primary)}<span class="device-note">${E(v.summary)}</span></div></section>
-      ${v.caps.controls.length?`<section class="control-surface cover-controls">${controls(v.caps.controls.filter(x=>x.kind==='buttons'))}${position?`<div class="position-control">${card._control(position)}${!c.compact?`<div class="preset-row" aria-label="快捷位置">${[0,25,75,100].map(n=>`<button data-command="position" data-value="${n}" aria-pressed="${position.value===n}" ${card._busy.has('position')?'disabled':''}>${n}%</button>`).join('')}</div>`:''}</div>`:''}</section>`:'<button class="device-detail-link" data-info>查看设备详情 ›</button>'}
+      ${v.caps.controls.length?`<section class="control-surface cover-controls">${controls(v.caps.controls.filter(x=>x.kind==='buttons'))}${position?`<div class="position-control">${card._control(position)}${!c.compact?`<div class="preset-row" aria-label="快捷位置">${[0,25,75,100].map(n=>`<button data-command="position" data-value="${n}" aria-pressed="${position.value===n}" ${card._busy.has('position')?'disabled':''}>${n}%</button>`).join('')}</div>`:''}</div>`:''}</section>`:''}
       ${!position&&v.primary.number===null?'<div class="device-footnote">行程未上报，按设备能力显示可用控制</div>':''}`;
   }else if(c.device==='vacuum'){
     const progress=f.progress||(c.progress_entity?metric(c.progress_entity,undefined,'清洁进度','%'):null),ratio=progress?.valid?number(progress.text):null;
@@ -75,37 +76,45 @@ export function deviceLayout(card,v,art,extras){
     const unsafe=v.online&&(['unlocked','jammed','未上锁'].includes(main?.state)||f.tamper?.warning||f.door?.warning);
     const event=f.event,picture=v.online&&f.snapshot?devicePicture(hass,f.snapshot.entity):'';
     const history=card._history,items=history?.items||[];
+    const currentEvent=event?.valid?hass.states[event.entity]:null;
+    const currentLabel=doorEventLabel(currentEvent);
+    const recent=currentLabel?currentEvent:v.online?items[0]:null;
+    const recentLabel=currentLabel&&DOMAIN(event.entity)==='sensor'?event.text:doorEventLabel(recent);
+    const recentTime=recent?formatDeviceTime(recent.last_changed||recent.last_updated):'';
     const safety=[f.door,f.tamper].filter(Boolean);
     const lockControls=controls(v.caps.controls);
     const doorbell=f.doorbell;
     const doorbellControl=doorbell?`<button class="lock-doorbell" data-info="${E(doorbell.entity)}">${icon('bell-outline')}<span>${E(doorbell.name)}<small>${E(doorbell.text+(doorbell.unit?' '+doorbell.unit:''))}</small></span></button>`:'';
     body=`<section class="lock-summary ${unsafe?'warning':locked?'secure':''}">${icon(locked||!v.online?'lock-outline':'lock-open-outline')}<div><strong class="device-state">${E(v.status)}</strong>${safety.length?`<div class="lock-safety">${safety.map(m=>`<button data-info="${E(m.entity)}" aria-label="${E(m.name+'：'+m.text)}">${icon(m.icon.replace('mdi:',''))}${E(m.text)}</button>`).join('')}</div>`:''}</div></section>
       ${c.compact?'':hero('lock-art')}${lockControls||doorbellControl?`<div class="lock-controls">${lockControls?`<div class="lock-actions">${lockControls}</div>`:''}${doorbellControl}</div>`:''}
-      ${event?`<button class="recent-event" data-info="${E(event.entity)}"><span class="recent-event-icon">${icon('door-closed')}</span><span class="feature-name">最近开门<strong>${E(DOMAIN(event.entity)==='event'&&event.valid?hass.states[event.entity]?.attributes?.event_type||event.text:event.text)}</strong>${event.valid?`<span class="event-date">${E(formatDeviceTime(hass.states[event.entity]?.last_changed))}</span>`:''}</span></button>
-      <div class="history-heading"><button data-history aria-expanded="${!!card._historyOpen}">${icon('history')}开门记录${history&&!history.loading&&!history.error?`<span class="history-count">${items.length}</span>`:''}${chevron}</button><button data-history-refresh aria-label="刷新开门记录">${icon('refresh')}</button></div>
-      ${card._historyOpen?`<div class="history-list" aria-live="polite">${history?.loading?'<p>正在读取记录…</p>':history?.error?`<p>${E(history.error)}</p><button data-info="${E(event.entity)}">查看 HA 历史 ›</button>`:items.length?items.map(item=>`<div class="history-item">${icon('key-outline')}<span><strong>${E(item.attributes?.event_type||item.state)}</strong><time>${E(formatDeviceTime(item.last_changed||item.last_updated))}</time></span></div>`).join(''):'<p>近 7 天没有可用记录</p>'}</div>`:''}`:''}
+      ${event?`<button class="recent-event" data-info="${E(event.entity)}"><span class="recent-event-icon">${icon('door-closed')}</span><span class="feature-name">最近开门<strong>${E(recentLabel||'—')}</strong>${recentTime?`<span class="event-date">${E(recentTime)}</span>`:''}</span></button>
+      <div class="history-heading"><button data-history aria-expanded="${!!card._historyOpen}">${icon('history')}<span>开门记录</span>${history&&!history.loading&&!history.error?`<span class="history-count">${items.length}</span>`:''}${chevron}</button><button data-history-refresh aria-label="刷新开门记录" title="刷新开门记录">${icon('refresh')}</button></div>
+      ${card._historyOpen?`<div class="history-list" aria-live="polite">${history?.loading?'<p>正在读取记录…</p>':history?.error?`<p>${E(history.error)}</p><button data-info="${E(event.entity)}">查看 HA 历史 ›</button>`:items.length?items.map(item=>`<div class="history-item">${icon('key-outline')}<span><strong>${E(doorEventLabel(item))}</strong><time>${E(formatDeviceTime(item.last_changed||item.last_updated))}</time></span></div>`).join(''):'<p>近 7 天没有可用记录</p>'}</div>`:''}`:''}
       ${f.snapshot?`<section class="lock-snapshot"><div class="section-caption">${icon('camera-outline')}猫眼抓拍</div><button class="snapshot-button" data-info="${E(f.snapshot.entity)}">${picture?`<img data-device-picture src="${E(picture)}" alt="猫眼最新抓拍" loading="lazy">`:`<span class="media-unavailable">${icon('camera-outline')}${v.online?'查看最新抓拍':'设备离线'}</span>`}</button></section>`:''}
       ${tiles([f.lithium_battery].filter(Boolean))}${section('access','高级功能',d.groups('actions'))}`;
   }else if(c.device==='camera'){
     const picture=v.online?devicePicture(hass,c.entity):'',ptz=d.groups('ptz');
-    const live=card._live&&v.online,liveLabel=live?'停止预览':'播放实时画面';
+    const live=card._live&&v.online,liveLabel=live?'暂停实时画面':'播放实时画面';
     const preview=live?'<div data-stream-host></div>':picture?
       `<img data-device-picture src="${E(picture)}" alt="${E(v.name)}预览">`:
       '<span class="media-unavailable">画面暂不可用</span>';
-    body=`<section class="camera-preview">
+    body=`<section class="camera-preview" ${live?'data-playing':''}>
       <div class="camera-frame">${preview}</div>
-      ${v.online?`<button class="camera-live" data-live aria-label="${liveLabel}" title="${liveLabel}">${icon(live?'stop':'play')}</button>`:''}
+      ${status}
+      ${v.online?`<button class="camera-live" data-live aria-label="${liveLabel}" title="${liveLabel}">${icon(live?'pause':'play')}</button>`:''}
     </section>
       ${ptz.length?`<section class="ptz-section"><div><span class="section-caption">云台控制</span><p class="device-note">点按调整镜头方向</p></div><div class="ptz-pad">${['ptz_up','ptz_left','ptz_home','ptz_right','ptz_down'].filter(key=>f[key]).map(key=>`<button style="grid-area:${key.replace('ptz_','')}" data-feature="${key}" aria-label="${E(f[key].name)}" ${f[key].disabled||card._busy.has('camera-ptz')?'disabled':''}>${icon(f[key].icon.replace('mdi:',''))}</button>`).join('')}</div></section>`:''}
       ${tiles(d.groups('settings'))}${section('playback','录像回放',d.groups('playback'))}`;
   }
   const customMetrics=c.metrics&&c.show_stats?v.metrics:[];
   const alerts=Object.values(f).filter(field=>field.warning);
-  const isLock=c.device==='door_lock';
+  const isLock=c.device==='door_lock',isCamera=c.device==='camera';
   return `<ha-card class="device-card ${E(c.device)}-card" style="--accent:var(--soft-${v.accent});--device-action:${v.accent==='warm'?'#925d22':'#286fc4'}" aria-label="${E(v.name)}">
-    <header class="header device-header"><div class="identity"><div class="room">${E(v.room)}</div>${c.device==='camera'?`<div class="name">${E(v.name)}</div>`:`<button class="name" data-info>${E(v.name)}</button>`}</div>
-      ${isLock?(battery?`<button class="battery-badge" data-info="${E(battery.entity)}">${icon('battery-outline')}<span><small>电池电量</small><strong>${E(battery.text+battery.unit)}</strong></span></button>`:''):`<span class="status ${!v.online||v.off?'neutral':''}">${E(statusText)}</span>`}
-      ${!isLock||v.caps.power?`<button class="icon-button" ${v.caps.power?'data-command="power"':'data-info'} aria-label="${v.caps.power?(v.off?'开启':'关闭'):'查看详情'}" ${card._busy.has('power')?'disabled':''}>${icon(v.caps.power?'power':'dots-horizontal')}</button>`:''}</header>
+    <header class="header device-header"><div class="identity"><div class="room">${E(v.room)}</div>${isCamera?`<div class="name">${E(v.name)}</div>`:`<button class="name" data-info>${E(v.name)}</button>`}</div>
+      ${isLock&&battery?`<button class="battery-badge" data-info="${E(battery.entity)}">${icon('battery-outline')}<span><small>电池电量</small><strong>${E(battery.text+battery.unit)}</strong></span></button>`:''}
+      ${!isLock&&!isCamera?status:''}
+      ${v.caps.power?`<button class="icon-button" data-command="power" aria-label="${v.off?'开启':'关闭'}" ${card._busy.has('power')?'disabled':''}>${icon('power')}</button>`:''}
+      ${card._detailsButton(isCamera?'查看录像与设备详情':undefined)}</header>
     ${alerts.length?`<div class="device-alert" role="alert">${icon('alert-circle-outline')}${E(alerts.map(x=>x.name+' · '+x.text).join('，'))}</div>`:''}
     ${body}${extras?`<div class="extra device-extras">${extras}</div>`:''}
     ${v.power?`<div class="power-reading"><span>当前功率</span><strong>${E(v.online?v.power.text:'—')} ${E(v.online?v.power.unit:'')}</strong></div>`:''}

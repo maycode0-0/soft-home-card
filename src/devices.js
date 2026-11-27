@@ -4,6 +4,14 @@ import { readMetric, available, actionAvailable, hasService, DOMAIN, auxiliaryCo
 export const LIGHT_DEVICES=['wall_light','spotlight','downlight','pendant_light','led_strip','bathroom_mirror'];
 export const COVER_DEVICES=['curtain','screen','projector_lift'];
 const ONVIF_PTZ_DIRECTIONS={ptz_up:{tilt:'UP'},ptz_down:{tilt:'DOWN'},ptz_left:{pan:'LEFT'},ptz_right:{pan:'RIGHT'}};
+const DOOR_EVENT_PLACEHOLDERS=new Set(['','无','none','null','unknown','unavailable']);
+
+export function doorEventLabel(item){
+  const state=typeof item?.state==='string'?item.state.trim():'';
+  if(DOOR_EVENT_PLACEHOLDERS.has(state.toLowerCase()))return '';
+  const label=typeof item.attributes?.event_type==='string'?item.attributes.event_type.trim()||state:state;
+  return DOOR_EVENT_PLACEHOLDERS.has(label.toLowerCase())?'':label;
+}
 
 export function onvifPtzAvailable(hass,c){
   return c.device==='camera'&&DOMAIN(c.entity)==='camera'&&c.onvif_ptz!=='off'

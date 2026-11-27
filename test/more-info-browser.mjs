@@ -75,6 +75,7 @@ try{
     },entityId);
     await emit({entityId});
     await dialog.locator('.camera-preview').waitFor();
+    assert.equal(await dialog.locator('.camera-preview .status').innerText(),'待机');
     assert.equal(await dialog.getByText('待机',{exact:true}).filter({visible:true}).count(),1);
     assert.equal(await dialog.getByRole('button',{name:'原生详情',exact:true}).count(),1);
     assert.equal(await dialog.getByRole('button',{name:'播放实时画面',exact:true}).count(),1);
@@ -85,7 +86,7 @@ try{
     const stream=dialog.locator('ha-camera-stream');
     await stream.waitFor({state:'attached'});
     assert.equal(await stream.evaluate(el=>el.stateObj.entity_id),entityId);
-    await dialog.getByRole('button',{name:'停止预览',exact:true}).click();
+    await dialog.getByRole('button',{name:'暂停实时画面',exact:true}).click();
     await stream.waitFor({state:'detached'});
     const count=await page.evaluate(()=>moreInfoDemo.root.nativeEvents.length);
     await gear.click();

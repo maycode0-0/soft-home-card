@@ -52,7 +52,7 @@
 
 1. 从 [Releases](https://github.com/maycode0-0/soft-home-card/releases/latest) 下载 `soft-home-card.js`，或使用仓库的 `dist/soft-home-card.js`。
 2. 将文件放到 HA 配置目录的 `www/soft-home-card/soft-home-card.js`（常见完整路径为 `/config/www/soft-home-card/soft-home-card.js`）。
-3. 在仪表盘资源中添加 `/local/soft-home-card/soft-home-card.js?v=1.2.2`，类型选择 **JavaScript 模块**。
+3. 在仪表盘资源中添加 `/local/soft-home-card/soft-home-card.js?v=1.2.3`，类型选择 **JavaScript 模块**。
 4. 刷新后添加 Soft Home 卡片，在可视化编辑器里选择实体。
 
 若“资源”入口不可见，先在个人资料中开启高级模式。首次创建 `www` 目录后如出现 404，重启 HA 再访问。手动升级时替换 JS 并更新 URL 的版本参数。
@@ -77,7 +77,7 @@
 - **功率、进度**：可选功率传感器和 0–100 的进度传感器。没有数据时不会填入演示值。
 - **辅助操作**：最多 3 个实体，可绑定洗衣启动按钮、除雾开关、换气开关、取水按钮或脚本。
 - **底部概览**：最多 3 项实体/属性。不指定时显示主实体已有的属性。
-- **只读展示**：保留读数和详情入口，禁用服务操作。
+- **只读展示**：保留读数和卡片右上角的齿轮详情入口，禁用服务操作。
 
 卡片通过当前登录的 HA 会话调用服务，不保存凭据。设备需要先通过对应集成接入 Home Assistant；卡片不提供新的设备集成。
 
@@ -143,7 +143,7 @@ features:
 
 开关、按钮、脚本直接操作所绑定实体，数值和选项参数打开 HA 原生详情调整。门锁仅在主实体为 `lock` 且服务可用时提供上锁 / 解锁；解锁需在卡片中确认，要求 PIN 的门锁使用 HA 原生详情。门锁历史依赖 HA Recorder 的历史 API 和当前用户权限；查询失败时显示详情入口。抓拍使用绑定的 `camera` / `image` 实体图片。
 
-摄像头优先使用 HA 的 `ha-camera-stream`；该组件未加载时打开原生实体详情。录像查询、播放、临时密码和授权由具体集成提供，需绑定该设备已有的实体。回放日期与时间通过绑定实体的原生详情设置。卡片不包含厂商私有录像检索或独立授权管理功能。
+摄像头可在预览画面中央播放或暂停实时视频，优先使用 HA 的 `ha-camera-stream`。该组件未加载时，播放按钮会打开实体详情。录像查询、播放、临时密码和授权由具体集成提供，需绑定该设备已有的实体。回放日期与时间通过绑定实体的原生详情设置。卡片不包含厂商私有录像检索或独立授权管理功能。
 
 通过 Home Assistant 的 ONVIF 集成接入 TP-IPC 等摄像头后，选中 ONVIF 摄像头主实体即可显示上、下、左、右方向键。默认点按后短时连续移动。若设备只支持相对移动，在「摄像头专属功能与状态」中切换「ONVIF 云台模式」，或在 YAML 中设置 `onvif_ptz: RelativeMove`。固定镜头可以将模式设为「关闭」。手动绑定的云台按钮或脚本优先执行。回到预置位使用单独绑定的按钮或脚本。
 
@@ -274,7 +274,7 @@ npm run demo
 2. 在 `CHANGELOG.md` 添加对应版本说明；更新手动安装示例的版本参数。
 3. 运行 `npm run build && npm run check && npm test && npm run test:browser && npm run test:more-info`。
 4. 将源码、版本信息、锁文件和 `dist/` 下的两个 JS 一起提交并推送。
-5. 创建与版本一致的标签，例如 `git tag -a v1.2.2 -m "Soft Home Card v1.2.2"`，再执行 `git push origin v1.2.2`。
+5. 创建与版本一致的标签，例如 `git tag -a v1.2.3 -m "Soft Home Card v1.2.3"`，再执行 `git push origin v1.2.3`。
 
 GitHub Actions 会重新构建并检查提交的 JS 是否一致，运行逻辑测试与 Chromium 交互测试。全部通过后才创建 GitHub Release，附上 `soft-home-card.js`、`soft-home-more-info.js` 和 `SHA256SUMS`。HACS 根据 Release 显示卡片更新。工作流使用 GitHub 自带的 `GITHUB_TOKEN`。
 

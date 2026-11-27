@@ -111,7 +111,9 @@ class SoftHomeMoreInfoDialog extends HTMLElement {
     this.toggleAttribute('dark',dark);this._dialog.classList.toggle('dark',dark);
     this.shadowRoot.querySelector('.eyebrow').textContent=params.config.room||'SOFT HOME · 设备详情';
     this.shadowRoot.querySelector('h2').textContent=params.config.name||state?.attributes?.friendly_name||params.entityId;
-    const pill=this.shadowRoot.querySelector('.status-pill'),status=moreInfoStateLabel(hass,params.entityId,params.config);pill.textContent=status;pill.classList.toggle('neutral',!v.online||v.off||moreInfoHasHistory(params.entityId)||params.config.lock_kind==='child'&&status!=='童锁已开启');
+    const statusRow=this.shadowRoot.querySelector('.status-row');
+    statusRow.hidden=params.config.device==='camera';
+    const pill=statusRow.querySelector('.status-pill'),status=moreInfoStateLabel(hass,params.entityId,params.config);pill.textContent=status;pill.classList.toggle('neutral',!v.online||v.off||moreInfoHasHistory(params.entityId)||params.config.lock_kind==='child'&&status!=='童锁已开启');
     const temperature=state?.attributes?.current_temperature,humidity=state?.attributes?.current_humidity;
     this.shadowRoot.querySelector('.status-note').textContent=[temperature!=null?`当前 ${temperature} ${hass.config?.unit_system?.temperature||'°C'}`:'',humidity!=null?`湿度 ${humidity}%`:''].filter(Boolean).join(' · ');
     const power=this.shadowRoot.querySelector('.power');power.hidden=!v.caps.power||params.config.lock_kind==='child';power.classList.toggle('active',!v.off);power.setAttribute('aria-label',v.off?'开启设备':'关闭设备');

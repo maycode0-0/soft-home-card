@@ -30,7 +30,7 @@
    frontend:
      themes: !include_dir_merge_named themes
      extra_module_url:
-       - /local/soft-home/soft-home-more-info.js?v=1.2.2
+       - /local/soft-home/soft-home-more-info.js?v=1.2.3
    ```
 
    只合并已有配置，不重复添加 `frontend:`。已有其他 `extra_module_url` 项目时，把新地址追加到列表。原主题目录和已有主题加载方式可以保留。
@@ -39,7 +39,7 @@
 
 请使用 `extra_module_url` 安装，以便从设置页直接进入时也加载扩展。仅添加仪表盘资源的方式，不能保证每个页面首次打开时已经加载。已有 HACS 设备卡片可以保留，卡片与扩展可独立更新。此扩展目前需要单独复制安装。
 
-更新时替换 JS、修改 URL 后的缓存版本参数，再重启 HA 并刷新前端。`v` 参数每次更新只递增数字版本，例如 `1.2.2` → `1.2.3`，不添加功能名称后缀。已安装旧版的用户可以将此前的 `v` 参数改为 `v=1.2.2`，加载童锁与门锁区分，以及此前的主灯造型、温湿度曲线、媒体和开锁历史修复。文件可通过 HA 地址 `/local/soft-home/soft-home-more-info.js?v=1.2.2` 检查是否能访问。
+更新时替换 JS，将 URL 的缓存版本参数改为 `v=1.2.3`，再重启 HA 并刷新前端。以后更新时使用对应的数字版本。文件可通过 HA 地址 `/local/soft-home/soft-home-more-info.js?v=1.2.3` 检查是否能访问。
 
 ## 替换范围
 
@@ -50,7 +50,7 @@
 | `cover` | 窗帘／幕布／升降支架；打开、停止、关闭与实际行程；车库门等使用通用面板 |
 | `water_heater`、`vacuum` | 热水与清扫的现有 Soft Home 控件 |
 | `lock` | 真实门锁使用门把手插画及上锁／解锁；童锁使用按键保护面板及开启／关闭童锁；要求 PIN 时继续使用原生面板 |
-| `camera` | 当前 Soft Home 支持的控件；完整录像操作进入原生详情 |
+| `camera` | 画面内显示状态和实时播放／暂停按钮；完整录像操作进入原生详情 |
 | `media_player` | 播放／暂停、上一首／下一首、停止；音量、静音、相对音量、输入源和播放进度按实际能力与读数显示；其他媒体功能进入原生详情 |
 | `fan`、`switch`、`input_boolean` | 开关与支持的风速／预设模式 |
 | `number`、`input_number`、`select`、`input_select` | 实体上报的数值范围、步长与选项 |

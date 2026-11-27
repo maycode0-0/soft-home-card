@@ -20,6 +20,7 @@ try{
   await page.goto(`http://127.0.0.1:${port}`);await page.waitForFunction(()=>window.cards?.length===23&&window.cards.every(c=>c.shadowRoot.querySelector('ha-card')),{},{timeout:10000}).catch(error=>{throw new Error(`${error.message}\nBrowser errors: ${errors.join('\n')}`);});
   // Exercise the full, spacious control surface before checking compact disclosures.
   await page.evaluate(()=>cards.forEach(c=>c.setConfig({...c._config,compact:false})));
+  await page.waitForFunction(()=>cards.every(c=>!c.hasAttribute('compact')));
   const wait=()=>page.waitForTimeout(100);
   const evaluate=async fn=>{const value=await page.evaluate(fn);await wait();return value;};
   const check=async (name,fn)=>{await fn();results.push(name);console.log('PASS '+name);};
@@ -27,14 +28,21 @@ try{
     assert.equal(await page.locator('soft-home-card ha-card').count(),23);
     assert.equal(await page.locator('soft-home-card .hero svg').count(),22);
     assert.equal(await page.locator('soft-home-card img').count(),2);
+    assert.equal(await page.locator('soft-home-card .header > [data-device-info] ha-icon[icon="mdi:cog-outline"]').count(),23);
   });
   await check('running motion advances smoothly, stops on pause and respects reduced motion and viewport visibility',async()=>{
     const washer=page.locator('soft-home-card').first();
     assert.equal(await washer.locator('ha-card').getAttribute('data-motion'),'wash');
-    const time=await washer.locator('.motion-drum').evaluate(el=>el.getAnimations()[0].currentTime);
-    await page.waitForTimeout(150);
-    await evaluate(()=>{window.motionSaved={phase:mock.states['sensor.washer_phase'],remaining:mock.states['sensor.remaining']};mock.states['sensor.remaining']={...motionSaved.remaining,state:'26'};mock.notify();});
-    assert.ok(await washer.locator('.motion-drum').evaluate((el,before)=>el.getAnimations()[0].currentTime>before,time),'readout updates preserve the animation phase');
+    await page.waitForFunction(()=>cards[0].shadowRoot.querySelector('.motion-drum').getAnimations()[0]?.currentTime>150);
+    const time=await page.evaluate(()=>{
+      const before=cards[0].shadowRoot.querySelector('.motion-drum').getAnimations()[0].currentTime;
+      window.motionSaved={phase:mock.states['sensor.washer_phase'],remaining:mock.states['sensor.remaining']};
+      mock.states['sensor.remaining']={...motionSaved.remaining,state:'26'};
+      mock.notify();
+      return before;
+    });
+    await washer.locator('.washer-time').filter({hasText:'26分钟'}).waitFor();
+    assert.ok(await washer.locator('.motion-drum').evaluate((el,before)=>el.getAnimations()[0].currentTime>=before,time),'readout updates preserve the animation phase');
     await evaluate(()=>{mock.states['sensor.washer_phase']={...motionSaved.phase,state:'paused'};mock.notify();});
     await page.waitForFunction(()=>cards[0].shadowRoot.querySelector('ha-card').dataset.motion==='');
     assert.equal(await washer.locator('ha-card').getAttribute('data-motion'),'');
@@ -305,16 +313,51 @@ try{
     await advanced.locator('summary').click();
     await evaluate(()=>cards[20].setConfig(lockConfig));
   });
-  await check('door history loads on demand and camera PTZ/playback use actual bound buttons',async()=>{
+  await check('door history loads on demand and excludes reset states from opening records',async()=>{
     const lock=page.locator('soft-home-card').nth(20);
-    await lock.locator('[data-history]').click();await wait();assert.equal(await lock.locator('.history-item').count(),4);
+    await evaluate(()=>{
+      const entity='sensor.door_lock_unlock_event';
+      const original=mock.states[entity],callApi=mock.callApi;
+      window.lockHistoryFixture={entity,original,callApi,requests:0};
+      const reset={...original,state:'无',last_changed:new Date().toISOString()};
+      mock.states[entity]=reset;
+      mock.callApi=async(...args)=>{
+        lockHistoryFixture.requests++;
+        const [items]=await callApi(...args);
+        return [[...items,{...reset,state:' None '},reset]];
+      };
+      mock.notify();
+    });
+    assert.equal(await page.evaluate(()=>lockHistoryFixture.requests),0);
+    assert.equal(await lock.locator('.recent-event strong').innerText(),'—');
+    assert.equal(await lock.locator('.recent-event .event-date').count(),0);
+    await lock.locator('[data-history]').click();
+    await lock.locator('.history-count').waitFor();
+    assert.equal(await lock.locator('.history-item').count(),4);
     assert.equal(await lock.locator('.history-count').innerText(),'4');
+    assert.equal(await lock.locator('.recent-event strong').innerText(),'内开');
     await evaluate(()=>{mock.states['sensor.door_lock_battery']={...mock.states['sensor.door_lock_battery'],state:'59'};mock.notify();});
     assert.equal(await lock.locator('.history-item').count(),4);
+    await evaluate(()=>{
+      const {entity,original,callApi}=lockHistoryFixture;
+      mock.states[entity]=original;
+      mock.callApi=callApi;
+      mock.notify();
+    });
+  });
+  await check('camera details, live overlay, PTZ and playback use the configured entities',async()=>{
     const camera=page.locator('soft-home-card').nth(22);
-    assert.equal(await camera.getByText('录像中',{exact:true}).count(),1);
-    assert.equal(await camera.locator('[data-info=""]').count(),1);
-    assert.equal(await camera.getByRole('button',{name:'播放实时画面',exact:true}).count(),1);
+    const preview=camera.locator('.camera-preview');
+    const gear=camera.locator('.header').getByRole('button',{name:'查看录像与设备详情'});
+    const play=preview.getByRole('button',{name:'播放实时画面',exact:true});
+    const pause=preview.getByRole('button',{name:'暂停实时画面',exact:true});
+    assert.equal(await camera.locator('.status').count(),1);
+    assert.equal(await preview.locator('.status').innerText(),'录像中');
+    assert.equal(await play.innerText(),'');
+    const frame=await preview.locator('.camera-frame').boundingBox(),button=await play.boundingBox();
+    assert.ok(frame&&button&&Math.abs(frame.x+frame.width/2-button.x-button.width/2)<1);
+    assert.ok(Math.abs(frame.y+frame.height/2-button.y-button.height/2)<1);
+    await gear.click();assert.equal(await page.evaluate(()=>lastMoreInfo),'camera.balcony');
     await camera.locator('img[data-device-picture]').dispatchEvent('error');
     assert.equal(await camera.getByText('画面暂不可用',{exact:true}).isVisible(),true);
     await camera.getByRole('button',{name:'向左',exact:true}).click();await wait();
@@ -322,14 +365,23 @@ try{
     await camera.locator('[data-device-section=playback] summary').click();
     await camera.locator('[data-info="date.camera_playback_date"]').click();assert.equal(await page.evaluate(()=>lastMoreInfo),'date.camera_playback_date');
     await camera.locator('[data-feature=query]').click();await wait();assert.equal(await page.evaluate(()=>mock.calls.at(-1).target.entity_id),'button.camera_query_recordings');
-    await camera.locator('[data-live]').click();assert.equal(await page.evaluate(()=>lastMoreInfo),'camera.balcony');
+    await play.click();assert.equal(await page.evaluate(()=>lastMoreInfo),'camera.balcony');
     await page.evaluate(()=>customElements.define('ha-camera-stream',class extends HTMLElement{}));
-    await camera.locator('[data-live]').click();await wait();
+    await play.click();await pause.waitFor();
     assert.equal(await page.evaluate(()=>cards[22].shadowRoot.querySelector('ha-camera-stream').stateObj.entity_id),'camera.balcony');
     assert.equal(await page.evaluate(()=>cards[22].shadowRoot.querySelector('ha-camera-stream').controls),true);
+    assert.equal(await pause.locator('ha-icon').getAttribute('icon'),'mdi:pause');
+    await page.mouse.move(0,0);
+    assert.equal(await pause.evaluate(el=>getComputedStyle(el).opacity),'0');
+    await preview.hover({position:{x:10,y:10}});
+    assert.equal(await pause.evaluate(el=>getComputedStyle(el).opacity),'1');
+    await page.mouse.move(0,0);
+    await gear.focus();
+    await page.keyboard.press('Tab');
+    assert.equal(await pause.evaluate(el=>el.getRootNode().activeElement===el&&getComputedStyle(el).opacity==='1'),true);
     await evaluate(()=>mock.notify());
     assert.equal(await page.evaluate(()=>cards[22].shadowRoot.querySelector('ha-camera-stream').hass===cards[22].hass),true);
-    await camera.locator('[data-live]').click();await wait();assert.equal(await camera.locator('ha-camera-stream').count(),0);
+    await page.keyboard.press('Enter');await play.waitFor();assert.equal(await camera.locator('ha-camera-stream').count(),0);
   });
   await check('ONVIF camera controls appear when PTZ loads and serialize movement',async()=>{
     const camera=page.locator('soft-home-card').nth(22);

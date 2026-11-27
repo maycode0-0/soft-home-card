@@ -4,7 +4,7 @@ import { CARD_CSS } from './styles.js';
 import { washerView, washerCommand } from './washer.js';
 import { WASHER_CSS } from './washer-styles.js';
 import { deviceLayout } from './device-layouts.js';
-import { deviceCommand, onvifPtzAvailable } from './devices.js';
+import { deviceCommand, doorEventLabel, onvifPtzAvailable } from './devices.js';
 import { DEVICE_CSS } from './device-styles.js';
 import { deviceMotion } from './motion.js';
 import { COMPACT_CSS } from './compact-styles.js';
@@ -43,6 +43,10 @@ export class SoftHomeCard extends HTMLElement {
   static getStubConfig(){return {type:'custom:soft-home-card',device:'washing_machine',show_stats:true};}
   _schedule(){if(this._raf||!this.isConnected)return;this._raf=requestAnimationFrame(()=>{this._raf=0;this._render();});}
   _info(entity=this._config.entity){this.dispatchEvent(new CustomEvent('hass-more-info',{detail:{entityId:entity},bubbles:true,composed:true}));}
+  _detailsButton(label='查看详情'){
+    const text=escapeHTML(label);
+    return `<button class="icon-button device-info" data-info data-device-info aria-label="${text}" title="${text}"><ha-icon icon="mdi:cog-outline" aria-hidden="true"></ha-icon></button>`;
+  }
   _control(control){const E=escapeHTML,busy=this._busy.has(control.id),disabled=busy?'disabled':'';
     if(control.kind==='color')return `<label class="select-control"><span>${E(control.label)}</span><input type="color" data-control="${control.id}" value="${control.value}" aria-label="选择灯光颜色" ${disabled}></label>`;
     if(control.kind==='range')return `<div><label class="control-label" for="${control.id}"><span>${E(control.label)}</span><output data-output="${control.id}">${E(control.value)} ${E(control.unit)}</output></label><input id="${control.id}" data-control="${control.id}" class="${control.id==='color_temperature'?'color-temperature':''}" type="range" min="${control.min}" max="${control.max}" step="${control.step}" value="${control.value}" aria-label="${E(control.label)}" aria-valuetext="${E(control.value+' '+control.unit)}" ${disabled}></div>`;
@@ -63,7 +67,7 @@ export class SoftHomeCard extends HTMLElement {
     const safetyMarkup=safety.length?`<section class="washer-safety" aria-label="安全状态">${safety.map(field=>`<button class="${field.warning?'warning':''}" data-info="${E(field.entity)}">${icon(field.icon)}<span>${E(field.name)} · ${E(field.text)}</span></button>`).join('')}</section>`:'';
     const usageMarkup=usage.length?`<section class="washer-usage" aria-label="用量与概览"><span class="washer-label">${c.metrics?'设备概览':v.power?'用量与功率':'本次用量'}</span><div class="metric-grid" style="--metrics:${usage.length}">${usage.map(m=>`<div class="metric"><span class="metric-label">${E(m.name)}</span><span class="metric-value">${E(v.online?m.text:'—')} <span class="metric-unit">${E(v.online?m.unit:'')}</span></span></div>`).join('')}</div></section>`:'';
     return `<ha-card class="washer-card" style="--accent:var(--soft-${v.accent});--washer-action:${v.accent==='warm'?'#966022':'#286fc4'}" aria-label="${E(v.name)}">
-      <header class="header"><div class="identity"><button class="name" data-info>${E(v.name)}</button><div class="room" title="${E(v.room)}">${E(v.room)}</div></div><span class="status ${!v.online||v.off||/待机|暂停/.test(w.status)?'neutral':''}">${E(w.status)}</span><button class="icon-button washer-more" data-info aria-label="查看${E(v.name)}详情">${icon('mdi:dots-horizontal')}</button></header>
+      <header class="header"><div class="identity"><button class="name" data-info>${E(v.name)}</button><div class="room" title="${E(v.room)}">${E(v.room)}</div></div><span class="status ${!v.online||v.off||/待机|暂停/.test(w.status)?'neutral':''}">${E(w.status)}</span>${this._detailsButton('查看'+v.name+'详情')}</header>
       ${w.alerts.length?`<div class="washer-alert" role="alert">${icon('mdi:alert-circle-outline')}<span>${E(w.alerts.map(f=>f.name+' · '+f.text).join('，'))}</span></div>`:''}
       <section class="washer-overview" aria-label="洗涤概况">
         <button class="washer-program" data-info="${E(program?.entity||c.entity)}"><span><span class="washer-label">当前程序</span><strong>${E(program?.valid?program.text:program?'程序未知':'洗衣概况')}</strong></span><span class="washer-chevron" aria-hidden="true">›</span></button>
@@ -72,7 +76,7 @@ export class SoftHomeCard extends HTMLElement {
         ${progress!==null?`<div class="washer-progress" role="progressbar" aria-label="洗涤进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span style="width:${progress}%"></span></div>`:''}
       </section>
       ${c.compact?'':quickMarkup}
-      <div class="washer-actions">${w.controls.map(control=>`<button class="${control.key==='start'?'washer-start':''}" ${control.key==='main-power'?'data-command="power"':`data-washer="${control.key}"`} ${control.disabled||this._busy.has(control.key==='main-power'?'power':'washer-'+control.key)?'disabled':''}>${icon(control.icon)}${E(control.label)}</button>`).join('')}${!w.controls.length&&!extras?'<button data-info>查看设备详情 ›</button>':''}</div>
+      ${w.controls.length?`<div class="washer-actions">${w.controls.map(control=>`<button class="${control.key==='start'?'washer-start':''}" ${control.key==='main-power'?'data-command="power"':`data-washer="${control.key}"`} ${control.disabled||this._busy.has(control.key==='main-power'?'power':'washer-'+control.key)?'disabled':''}>${icon(control.icon)}${E(control.label)}</button>`).join('')}</div>`:''}
       ${extras?`<div class="extra washer-extras">${extras}</div>`:''}
       ${v.caps.controls.length?`<div class="controls">${v.caps.controls.map(control=>this._control(control)).join('')}</div>`:''}
       ${this._busy.size?'<div class="busy" role="status">正在发送操作…</div>':''}
@@ -96,27 +100,25 @@ export class SoftHomeCard extends HTMLElement {
     const focused=this.shadowRoot.activeElement;
     const focusKind=focused?.hasAttribute('data-control')?'control':'command',focusKey=focused?.dataset?.[focusKind];
     const focusIndex=focusKey?[...this.shadowRoot.querySelectorAll(`[data-${focusKind}]`)].filter(el=>el.dataset[focusKind]===focusKey).indexOf(focused):-1;
-    const transientFocus=['data-live','data-history','data-history-refresh'].find(attribute=>focused?.hasAttribute(attribute));
-    const washerFocus=focused?.hasAttribute('data-washer')?['data-washer',focused.dataset.washer]:focused?.hasAttribute('data-info')?['data-info',focused.dataset.info]:focused?.matches('summary')?['summary',null]:null;
+    const transientFocus=['data-live','data-history','data-history-refresh','data-device-info'].find(attribute=>focused?.hasAttribute(attribute));
+    const washerFocus=transientFocus?null:focused?.hasAttribute('data-washer')?['data-washer',focused.dataset.washer]:focused?.hasAttribute('data-info')?['data-info',focused.dataset.info]:focused?.matches('summary')?['summary',null]:null;
     const value=v.primary.text,unit=v.primary.unit;
     const primaryString=value+(unit?` ${unit}`:'');
     let art=ART[c.device];
     art=art.replace(/(<text\b[^>]*data-readout="(\d+)"[^>]*>)[\s\S]*?(<\/text>)/g,(_,open,index,close)=>open+E(index==='0'?primaryString:(v.secondary?.valid?`${v.secondary.text} ${v.secondary.unit}`:'—'))+close);
     const actionButtons=(c.actions||[]).map((a,i)=>`<button data-action="${i}" ${this._busy.has('action-'+i)||a.action!=='more-info'&&(!v.online||c.read_only)?'disabled':''}>${E(a.label)}</button>`).join('');
     const auxButtons=v.auxiliary.map((a,i)=>`<button data-aux="${i}" class="${a.on?'active':''}" title="${E(a.state)}" ${a.disabled||this._busy.has('aux-'+i)?'disabled':''}>${E(a.name)}</button>`).join('');
-    const noControl=!v.caps.controls.length&&!auxButtons&&!actionButtons;
     const deviceMarkup=!w?deviceLayout(this,v,art,auxButtons+actionButtons):'';
     const openedSections=new Set([...this.shadowRoot.querySelectorAll('details[data-device-section][open]')].map(el=>el.dataset.deviceSection));
     const featureFocus=focused?.hasAttribute('data-feature')?focused.dataset.feature:null;
     this.shadowRoot.innerHTML=w?`<style>${CARD_CSS}${WASHER_CSS}</style>${this._washerMarkup(v,w,art,auxButtons+actionButtons)}`:deviceMarkup?`<style>${CARD_CSS}${DEVICE_CSS}</style>${deviceMarkup}`:`<style>${CARD_CSS}</style><ha-card class="generic-card" style="--accent:var(--soft-${v.accent})" aria-label="${E(v.name)}">
-      <header class="header"><button class="icon-button device-icon" data-info title="查看设备详情" aria-label="查看${E(v.name)}详情"><ha-icon icon="${v.icon}"></ha-icon></button><div class="identity"><button class="name" data-info>${E(v.name)}</button><div class="room" title="${E(v.room)}">${E(v.room)}</div></div><span class="status ${!v.online||v.off?'neutral':''}" title="${E(v.status)}">${E(v.status)}</span><button class="icon-button" ${v.caps.power?'data-command="power"':'data-info'} aria-label="${v.caps.power?(v.off?'开启':'关闭'):'查看详情'}" ${this._busy.has('power')?'disabled':''}><ha-icon icon="${v.caps.power?'mdi:power':'mdi:dots-horizontal'}"></ha-icon></button></header>
+      <header class="header"><button class="icon-button device-icon" data-info title="查看设备详情" aria-label="查看${E(v.name)}详情"><ha-icon icon="${v.icon}"></ha-icon></button><div class="identity"><button class="name" data-info>${E(v.name)}</button><div class="room" title="${E(v.room)}">${E(v.room)}</div></div><span class="status ${!v.online||v.off?'neutral':''}" title="${E(v.status)}">${E(v.status)}</span>${v.caps.power?`<button class="icon-button" data-command="power" aria-label="${v.off?'开启':'关闭'}" ${this._busy.has('power')?'disabled':''}><ha-icon icon="mdi:power" aria-hidden="true"></ha-icon></button>`:''}${this._detailsButton()}</header>
       <section class="generic-overview"><div><span class="generic-kicker">${E(v.primary.label)}</span><strong class="generic-value ${value.length>5||['ON','OFF'].includes(value)?'textual':''}">${E(['ON','OFF'].includes(value)?v.status:value)}<small>${E(unit)}</small></strong><span class="generic-state">${E(v.status)}</span></div><button class="hero ${!v.online?'offline':v.off?'inactive':''}" data-info aria-label="查看${E(v.name)}详情">${art}</button></section>
       ${c.progress_entity&&v.primary.ratio!==null?`<div class="generic-progress" role="progressbar" aria-label="运行进度" aria-valuenow="${Math.round(v.primary.ratio*100)}" aria-valuemin="0" aria-valuemax="100"><div class="control-label"><span>运行进度</span><output>${Math.round(v.primary.ratio*100)}%</output></div><div class="generic-progress-track"><span style="width:${v.primary.ratio*100}%"></span></div></div>`:''}
       <section class="panel">
       <div class="main-info"><p class="main-title">${E(v.summary)}</p><p class="summary">${E(v.secondary?.valid?`${v.secondary.name} · ${v.secondary.text} ${v.secondary.unit}`:v.primary.label)}</p>
       <div class="controls">${v.caps.controls.map(control=>this._control(control)).join('')}</div>
       ${v.power?`<div class="power-reading"><span>当前功率</span><strong>${E(v.power.text)} ${E(v.power.unit)}</strong></div>`:''}
-      ${noControl?'<button class="hint" data-info>查看实体详情 ›</button>':''}
       ${this._busy.size?'<div class="busy" role="status">正在发送操作…</div>':''}</div>
       ${auxButtons||actionButtons?`<div class="extra">${auxButtons}${actionButtons}</div>`:''}</section>
       ${c.show_stats&&v.metrics.length?`<section class="stats"><div class="stats-title">设备概览</div><div class="metric-grid" style="--metrics:${v.metrics.length}">${v.metrics.map(m=>`<div class="metric"><span class="metric-label" title="${E(m.name)}">${E(m.name)}</span><span class="metric-value">${E(m.text)} <span class="metric-unit">${E(m.unit)}</span></span></div>`).join('')}</div></section>`:''}
@@ -165,12 +167,15 @@ export class SoftHomeCard extends HTMLElement {
   }
   async _loadHistory(){
     const entity=this._config.features?.event;if(!entity||this._history?.loading)return;
-    const request={entity,loading:true,items:[]};this._history=request;this._lastRender='';this._schedule();
+    const request={entity,loading:true,items:this._history?.items||[]};this._history=request;this._lastRender='';this._schedule();
     try{
       if(!this._hass.callApi)throw new Error('当前会话不支持历史查询，请在 HA 详情中查看。');
       const end=new Date(),start=new Date(end.getTime()-7*86400000);
       const response=await this._hass.callApi('GET',`history/period/${encodeURIComponent(start.toISOString())}?filter_entity_id=${encodeURIComponent(entity)}&end_time=${encodeURIComponent(end.toISOString())}`);
-      request.items=(Array.isArray(response?.[0])?response[0]:[]).filter(item=>item&&item.state&&!['unknown','unavailable'].includes(item.state)&&Number.isFinite(new Date(item.last_changed||item.last_updated).getTime())&&new Date(item.last_changed||item.last_updated)>=start).slice(-20).reverse();
+      request.items=(Array.isArray(response?.[0])?response[0]:[]).filter(item=>{
+        const time=Date.parse(item?.last_changed||item?.last_updated);
+        return time>=start&&doorEventLabel(item);
+      }).slice(-20).reverse();
     }catch(error){request.error=error?.message||'暂时无法读取记录，请在 HA 详情中查看。';}
     finally{request.loading=false;if(this._history===request){this._lastRender='';this._schedule();}}
   }

@@ -9,6 +9,7 @@ dialog[open]{display:flex;flex-direction:column}.dialog-header,.status-row{flex-
 `;
 
 export const MORE_INFO_PANEL_CSS = `
+.camera-preview{margin-top:0}
 .generic-detail.child-lock-detail{position:relative;padding:24px 24px 24px 90px}.child-lock-symbol{position:absolute;top:25px;left:22px;width:46px;height:46px;display:grid;place-items:center;border-radius:15px;background:var(--soft-line);color:var(--soft-muted)}.child-lock-symbol ha-icon{--mdc-icon-size:28px}.child-lock-detail.enabled .child-lock-symbol{background:var(--soft-status);color:var(--soft-green)}.generic-detail.child-lock-detail .generic-detail-value{font-size:24px}.child-lock-detail .controls{margin-left:-66px;margin-top:20px}.child-lock-description{font-size:11px}
 :host .camera-card>.camera-preview{margin-top:0}
 :host .climate-overview{min-height:130px;padding:14px 18px;margin-bottom:14px}:host .climate-overview .hero{height:110px}:host .air_conditioner-card>.control-surface{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px 14px}:host .air_conditioner-card>.control-surface>:first-child,:host .air_conditioner-card .mode-chips{grid-column:1/-1}:host .air_conditioner-card .mode-chips{padding-top:10px}:host .air_conditioner-card>.environment-readings{margin:12px 0}:host [data-more-info-advanced]{margin-top:10px}:host [data-more-info-advanced]>summary{font-size:11px;min-height:44px}:host .climate-overview .device-value{font-size:46px}
