@@ -1,4 +1,4 @@
-import { DEVICES, escapeHTML } from './model.js';
+import { DEVICES, ONVIF_PTZ_MODES, escapeHTML } from './model.js';
 import { EDITOR_CSS } from './styles.js';
 import { deviceGroups, entityScope, entityOptions, selectDeviceScope, clearEntityBindings, fieldLabels } from './editor-model.js';
 import { SoftHomePicker } from './picker.js';
@@ -15,7 +15,7 @@ export class SoftHomeCardEditor extends HTMLElement {
     },0));
   }
   setConfig(config){
-    const next={show_stats:true,...config};
+    const next={show_stats:true,compact:true,...config};
     if(JSON.stringify(next)===JSON.stringify(this._config))return;
     this._config=next;this._resetRows();this._render();
   }
@@ -52,6 +52,8 @@ export class SoftHomeCardEditor extends HTMLElement {
     const groups=deviceGroups(data,c.device,this._showAll);
     if(scope&&!groups.some(g=>g.key===scope.key))groups.unshift(scope);
     const devices=groups.map(g=>({value:g.key,label:g.label,description:[g.manufacturer,g.model,`${g.entityIds.length} 个实体`,g.deviceId||g.key].filter(Boolean).join(' · '),search:g.texts.join(' ')}));
+    const cameraOptions=c.device==='camera'?
+      `<label>ONVIF 云台模式<select data-field="onvif_ptz">${Object.entries(ONVIF_PTZ_MODES).map(([mode,label])=>`<option value="${mode}" ${(c.onvif_ptz||'ContinuousMove')===mode?'selected':''}>${label}</option>`).join('')}</select></label><p>ONVIF 摄像头可直接使用方向键。已有按钮 / 脚本优先用于对应方向。回放日期与时间在绑定实体的原生详情中设置。</p>`:'';
     this.shadowRoot.innerHTML=`<style>${EDITOR_CSS}</style><div class="form">
       <label class="full">设备类型<select data-field="device">${Object.entries(DEVICES).map(([key,[name]])=>`<option value="${key}" ${c.device===key?'selected':''}>${name}</option>`).join('')}</select></label>
       ${picker('_scope',`选择具体${DEVICES[c.device]?.[0]||'设备'}`,scope?.key,devices,false,'未找到匹配设备，可勾选下方「搜索全部设备」手动选择')}
@@ -62,10 +64,10 @@ export class SoftHomeCardEditor extends HTMLElement {
       ${field('name','卡片名称（可选）',c.name)}${field('room','房间 / 副标题（可选）',c.room)}
       <label>主题<select data-field="theme">${[['light','浅蓝白'],['dark','深色'],['auto','跟随 HA']].map(([key,label])=>`<option value="${key}" ${(c.theme||'light')===key?'selected':''}>${label}</option>`).join('')}</select></label>
       <label>强调色<select data-field="accent"><option value="">按设备自动</option><option value="blue" ${c.accent==='blue'?'selected':''}>蓝色</option><option value="warm" ${c.accent==='warm'?'selected':''}>暖色</option></select></label>
-      ${check('read_only','只读展示')}${['screen','projector_lift','curtain'].includes(c.device)?check('invert_position','反转行程读数（100 − HA 位置）'):''}
+      ${check('compact','紧凑布局')}${check('read_only','只读展示')}${['screen','projector_lift','curtain'].includes(c.device)?check('invert_position','反转行程读数（100 − HA 位置）'):''}
       ${details('readings','读数与参数',`<div class="form">${entity('primary_entity',labels.primary,c.primary_entity)}${field('primary_attribute','属性名（留空读取实体状态）',c.primary_attribute)}${field('primary_label','主读数标题',c.primary_label)}${field('primary_unit','单位（留空自动）',c.primary_unit)}${entity('secondary_entity',labels.secondary,c.secondary_entity)}${entity('power_entity','功率传感器',c.power_entity)}${labels.progress?entity('progress_entity',c.device==='washing_machine'?'洗涤进度传感器（0–100）':'环形进度传感器（0–100）',c.progress_entity):''}</div><p>参数均来自所选设备。未接入的参数不会显示，未配置的读数不会填入示例值。</p>`)}
       ${c.device==='washing_machine'?details('washer','洗衣机专属参数与操作',`<p>选择设备时会匹配名称明确的实体；可在这里修正或清除。参数点按后打开 HA 原生详情，启停与电源直接操作所绑定的开关。</p>${[['cycle','程序与进程'],['quick','常用参数'],['control','启停与电源'],['safety','安全状态'],['settings','更多设置'],['usage','本次用量']].map(([group,title])=>`<h4>${title}</h4><div class="form">${Object.entries(WASHER_FIELDS).filter(([,f])=>f.group===group).map(([key,f])=>entity(`washer.${key}`,f.name,c.washer?.[key])).join('')}</div>`).join('')}`):''}
-      ${Object.keys(DEVICE_FIELDS[c.device]||{}).length?details('features',`${E(DEVICES[c.device][0])}专属功能与状态`,`<p>仅匹配所选设备内名称明确的实体。开关 / 按钮直接操作；其他参数打开 HA 原生详情调整。未绑定的功能不显示。</p>${['readings','zones','safety','event','media','actions','ptz','playback','settings','station','timers','rooms'].map(group=>{const fields=Object.entries(DEVICE_FIELDS[c.device]).filter(([,f])=>f.group===group);return fields.length?`<h4>${({readings:'实时读数',zones:'各温区实测温度',safety:'安全状态',event:'最近事件',media:'图像',actions:'快捷操作',ptz:'云台按钮 / 脚本',playback:'录像回放实体',settings:'设备设置',station:'基站与任务状态',timers:'定时',rooms:'分房间清洁参数'})[group]}</h4><div class="form">${fields.map(([key,f])=>entity('features.'+key,f.name,c.features?.[key])).join('')}</div>`:'';}).join('')}${c.device==='camera'?'<p>云台和录像查询由摄像头集成提供。绑定该设备已有的按钮或脚本；回放日期 / 时间通过所绑定实体的原生详情设置。</p>':''}`):''}
+      ${Object.keys(DEVICE_FIELDS[c.device]||{}).length?details('features',`${E(DEVICES[c.device][0])}专属功能与状态`,`<p>仅匹配所选设备内名称明确的实体。开关 / 按钮直接操作；其他参数打开 HA 原生详情调整。未绑定的实体功能不显示。</p>${['readings','zones','safety','event','media','actions','ptz','playback','settings','station','timers','rooms'].map(group=>{const fields=Object.entries(DEVICE_FIELDS[c.device]).filter(([,f])=>f.group===group);return fields.length?`<h4>${({readings:'实时读数',zones:'各温区实测温度',safety:'安全状态',event:'最近事件',media:'图像',actions:'快捷操作',ptz:'云台按钮 / 脚本',playback:'录像回放实体',settings:'设备设置',station:'基站与任务状态',timers:'定时',rooms:'分房间清洁参数'})[group]}</h4><div class="form">${fields.map(([key,f])=>entity('features.'+key,f.name,c.features?.[key])).join('')}</div>`:'';}).join('')}${cameraOptions}`):''}
       ${details('auxiliary','辅助操作（最多 3 个）',`<div class="form">${this._rows.auxiliary.map((row,i)=>entity(`auxiliary.${i}.entity`,`操作 ${i+1}：实体`,row.entity)+field(`auxiliary.${i}.name`,`操作 ${i+1}：按钮文字`,row.name)).join('')}</div><p>选择这台设备的开关、按钮等实体，用于启动、除雾、换气等。跨设备脚本可在代码编辑器的 actions 中配置。</p>`)}
       ${details('metrics','底部概览（最多 3 项）',`<div class="form">${check('show_stats','显示设备概览')}${this._rows.metrics.map((row,i)=>entity(`metrics.${i}.entity`,`指标 ${i+1}：实体`,row.entity)+field(`metrics.${i}.name`,`指标 ${i+1}：标题`,row.name)+field(`metrics.${i}.attribute`,`指标 ${i+1}：属性名（可选）`,row.attribute)).join('')}</div><p>不指定时显示主实体已有的属性。</p>`)}
     </div>`;

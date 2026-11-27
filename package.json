@@ -1,14 +1,15 @@
 {
   "name": "soft-home-card",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "private": true,
   "type": "module",
   "description": "23 soft neumorphic device cards with device-specific controls for Home Assistant",
   "scripts": {
     "build": "node scripts/build.mjs",
     "check": "node scripts/check.mjs",
-    "test": "node --test test/model.test.mjs test/editor-model.test.mjs test/devices.test.mjs",
+    "test": "node --test test/model.test.mjs test/editor-model.test.mjs test/devices.test.mjs test/motion.test.mjs test/more-info.test.mjs",
     "test:browser": "node test/browser.mjs",
+    "test:more-info": "node test/more-info-browser.mjs",
     "demo": "node scripts/serve.mjs"
   },
   "engines": {

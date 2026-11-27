@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#eaf0f8">
+  <title>Soft Home · 柔光主题</title>
+  <link rel="stylesheet" href="/demo/theme.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <aside class="sidebar" aria-label="侧边导航">
+    <a class="brand" href="/demo/theme.html"><span class="brand-mark"><ha-icon icon="mdi:home-outline" aria-hidden="true"></ha-icon></span><span>SOFT HOME<small>柔光 · 智能生活</small></span></a>
+    <div class="sidebar-label">我的家</div>
+    <nav class="side-nav" aria-label="页面导航">
+      <a href="#overview" aria-current="location"><ha-icon icon="mdi:home-outline" aria-hidden="true"></ha-icon>家的概览</a>
+      <a href="#devices"><ha-icon icon="mdi:toggle-switch-off-outline" aria-hidden="true"></ha-icon>设备与空间</a>
+      <a href="#appearance"><ha-icon icon="mdi:tune-variant" aria-hidden="true"></ha-icon>外观与配色</a>
+    </nav>
+    <div class="sidebar-note"><span class="tiny-line"></span><p>留一点柔光，<br>给平常的日子。</p></div>
+    <div class="sidebar-bottom"><span class="avatar">家</span><span>Soft Home<small>Home Assistant 主题</small></span><span class="online-dot" title="本地预览"></span></div>
+  </aside>
+  <div class="workspace">
+    <header class="app-header">
+      <a class="breadcrumb" href="#overview"><ha-icon icon="mdi:home-outline" aria-hidden="true"></ha-icon><span>我的家</span><span class="crumb-divider">/</span><span>概览</span></a>
+      <div class="header-actions"><span class="preview-label"><span class="online-dot"></span>主题预览</span><a class="icon-button" href="/themes/soft_home.yaml" download="soft_home.yaml" aria-label="下载 Soft Home 主题"><ha-icon icon="mdi:arrow-down" aria-hidden="true"></ha-icon></a><button class="icon-button" id="open-settings" aria-label="查看外观设置"><ha-icon icon="mdi:tune-variant" aria-hidden="true"></ha-icon></button></div>
+    </header>
+    <main id="main">
+      <section class="welcome" id="overview" aria-labelledby="page-title">
+        <div><p class="eyebrow">A LITTLE SOFTER, EVERY DAY</p><h1 id="page-title">家里的此刻<span>，</span></h1><p class="intro">温度、光线与生活，都在舒服的位置。</p></div>
+        <div class="mode-control"><span class="mode-label" id="mode-description">日光 · 浅色模式</span><div class="mode-switch" role="group" aria-label="主题模式"><button data-mode="light" aria-pressed="true"><ha-icon icon="mdi:white-balance-sunny" aria-hidden="true"></ha-icon>日光</button><button data-mode="dark" aria-pressed="false"><ha-icon icon="mdi:weather-night" aria-hidden="true"></ha-icon>夜色</button></div></div>
+      </section>
+      <p id="preview-error" role="alert" hidden></p>
+      <section class="overview-grid" aria-label="天气与家庭状态">
+        <article class="surface weather-card">
+          <div class="card-heading"><span><ha-icon icon="mdi:map-marker-outline" aria-hidden="true"></ha-icon>家的天气</span><span class="small-label">示例天气</span></div>
+          <div class="weather-main"><div><span class="weather-condition">晴间多云</span><strong>23<span>°</span></strong><p>微风正好，适合开窗</p></div><svg class="weather-art" viewBox="0 0 220 150" fill="none" aria-hidden="true"><defs><linearGradient id="sun" x1="97" y1="15" x2="150" y2="90" gradientUnits="userSpaceOnUse"><stop stop-color="#ffdfac"/><stop offset="1" stop-color="#e6b879"/></linearGradient><linearGradient id="cloud" x1="40" y1="70" x2="160" y2="145" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#d6e5f6"/></linearGradient><filter id="soft-weather-shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="1" dy="7" stdDeviation="5" flood-color="#7394bb" flood-opacity=".16"/></filter></defs><ellipse cx="115" cy="137" rx="77" ry="5" fill="currentColor" opacity=".06"/><g stroke="#e8c491" stroke-width="3" stroke-linecap="round"><path d="M142 11v-6M142 105v-6M96 57h-6M194 57h-6M109 24l-4-4M179 94l-4-4M109 90l-4 4M179 20l-4 4"/></g><circle cx="142" cy="56" r="32" fill="url(#sun)"/><path d="M58 125c-18 0-29-12-29-27 0-14 11-25 25-26 5-22 23-35 44-32 18 2 31 15 35 32 15-3 31 7 33 22 20 1 29 10 29 21 0 7-5 10-15 10H58Z" fill="url(#cloud)" stroke="#ffffff" stroke-width="1.5" filter="url(#soft-weather-shadow)"/></svg></div>
+          <div class="weather-footer"><span>体感 <b>24 °C</b></span><span>湿度 <b>58%</b></span><span>微风 <b>2 级</b></span></div>
+        </article>
+        <article class="surface environment-card">
+          <div class="card-heading"><span><ha-icon icon="mdi:thermometer" aria-hidden="true"></ha-icon>室内环境</span><span class="status-pill">舒适</span></div>
+          <div class="environment-readings"><div><span class="small-label">客厅温度</span><strong>24.6<small>°C</small></strong><span class="reading-note">体感舒适</span></div><div><span class="small-label">相对湿度</span><strong>56<small>%</small></strong><span class="reading-note">湿度适宜</span></div></div>
+          <div class="comfort-track" aria-label="环境舒适区示意"><span></span><i></i></div><div class="comfort-labels"><span>偏凉</span><span>刚刚好</span><span>偏暖</span></div>
+        </article>
+        <article class="surface entities-card">
+          <div class="card-heading"><span>家中状态</span><span class="small-label">本地示例</span></div>
+          <div class="entity-row"><ha-icon icon="mdi:lightbulb-outline" aria-hidden="true"></ha-icon><span>客厅壁灯<small id="light-state">已开启</small></span><button class="toggle" id="native-light" role="switch" aria-label="客厅壁灯" aria-checked="true"><span></span></button></div>
+          <div class="entity-row"><ha-icon icon="mdi:curtains" aria-hidden="true"></ha-icon><span>客厅窗帘<small>开启程度</small></span><strong id="curtain-state">65<small>%</small></strong></div>
+          <div class="entity-row"><ha-icon icon="mdi:lock-outline" aria-hidden="true"></ha-icon><span>入户门锁<small>安心在家</small></span><span class="inline-status"><span class="online-dot"></span>已上锁</span></div>
+        </article>
+      </section>
+      <section class="scene-section" aria-label="生活场景">
+        <span class="scene-label">让家，跟上你的节奏</span>
+        <div class="scenes" role="group" aria-label="示例场景">
+          <button data-scene="home" aria-pressed="true"><ha-icon icon="mdi:home-outline" aria-hidden="true"></ha-icon>回家<span>舒适如常</span></button>
+          <button data-scene="reading" aria-pressed="false"><ha-icon icon="mdi:lightbulb-outline" aria-hidden="true"></ha-icon>阅读<span>一盏好光</span></button>
+          <button data-scene="movie" aria-pressed="false"><ha-icon icon="mdi:play" aria-hidden="true"></ha-icon>观影<span>把光调暗</span></button>
+          <button data-scene="night" aria-pressed="false"><ha-icon icon="mdi:weather-night" aria-hidden="true"></ha-icon>晚安<span>留一盏温柔</span></button>
+        </div>
+      </section>
+      <section id="devices" class="devices-section" aria-labelledby="devices-title">
+        <div class="section-heading"><div><span class="section-number">01</span><h2 id="devices-title">设备与空间</h2><span class="small-label">熟悉的柔光，融入整个家</span></div><a class="text-link" href="/demo/home.html">全部设备 <span aria-hidden="true">↗</span></a></div>
+        <div class="device-grid" id="device-grid"></div>
+      </section>
+      <section id="appearance" class="appearance-section" aria-labelledby="appearance-title">
+        <div class="section-heading"><div><span class="section-number">02</span><h2 id="appearance-title">柔光的细节</h2><span class="small-label">安静的颜色，清楚的层次</span></div><button class="text-link" id="open-palette">查看外观设置 <span aria-hidden="true">↗</span></button></div>
+        <div class="appearance-grid">
+          <article class="surface palette-card"><div class="card-heading"><span>家的配色</span><span class="small-label" id="palette-mode">日光色板</span></div><div class="palette" id="palette"></div></article>
+          <article class="surface component-card"><div class="card-heading"><span>状态，也有温度</span><span class="small-label">文字与颜色一起表达</span></div><div class="semantic-samples"><span class="status-pill">运行正常</span><span class="status-pill warning">需要留意</span><span class="status-pill danger">设备离线</span></div><div class="component-footer"><span>28px 柔和圆角 · 轻盈层次</span><button class="primary-button" id="download-theme">下载主题<ha-icon icon="mdi:arrow-down" aria-hidden="true"></ha-icon></button></div></article>
+        </div>
+      </section>
+      <footer class="page-footer"><span>SOFT HOME <i></i> 让设备，融入生活。</span><span>本地主题示意 · 操作仅影响本页 <a href="/themes/README.md">安装说明 ↗</a></span></footer>
+    </main>
+  </div>
+  <dialog id="settings-dialog" aria-labelledby="dialog-title">
+    <form method="dialog"><header class="dialog-header"><div><span class="eyebrow">MAKE IT YOURS</span><h2 id="dialog-title">外观设置</h2></div><button class="icon-button" aria-label="关闭外观设置" value="close">×</button></header>
+      <p class="dialog-intro">一套柔光，两种心情。</p>
+      <label class="field-label" for="theme-choice">主题</label><select id="theme-choice" disabled><option>Soft Home · 柔光</option></select>
+      <span class="field-label">配色模式</span><div class="dialog-modes" role="group" aria-label="外观配色模式"><button type="button" data-mode="light" aria-pressed="true"><ha-icon icon="mdi:white-balance-sunny" aria-hidden="true"></ha-icon><span>日光<small>浅蓝白，轻盈明亮</small></span></button><button type="button" data-mode="dark" aria-pressed="false"><ha-icon icon="mdi:weather-night" aria-hidden="true"></ha-icon><span>夜色<small>深蓝灰，安静柔和</small></span></button></div>
+      <div class="dialog-note"><ha-icon icon="mdi:information-outline" aria-hidden="true"></ha-icon><p>这里切换本页预览。安装后，在 HA 个人资料中选择 Soft Home 主题与配色模式。</p></div>
+      <div class="dialog-actions"><a class="secondary-button" href="/themes/soft_home.yaml" download="soft_home.yaml">下载 YAML</a><button class="primary-button" value="done">完成</button></div>
+    </form>
+  </dialog>
+  <div class="toast" id="notice" role="status" hidden></div>
+  <script src="/dist/soft-home-card.js"></script>
+  <script type="module" src="/demo/theme.js"></script>
+</body>
+</html>

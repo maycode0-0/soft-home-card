@@ -15,4 +15,43 @@
  <filter id="lift" x="-30%" y="-30%" width="170%" height="180%"><feDropShadow dx="5" dy="8" stdDeviation="7" flood-color="#8098B6" flood-opacity=".2"/><feDropShadow dx="-3" dy="-3" stdDeviation="4" flood-color="#FFFFFF" flood-opacity=".9"/></filter>
  <filter id="soft" x="-40%" y="-50%" width="180%" height="200%"><feDropShadow dx="3" dy="5" stdDeviation="4" flood-color="#6E87A6" flood-opacity=".23"/></filter>
  <filter id="glow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="5"/></filter>
- </defs><g><ellipse cx="161" cy="180" rx="93" ry="14" fill="#F8DDAF" opacity=".16"/><rect x="137" y="3" width="46" height="8" rx="4" fill="url(#enamel)" stroke="#BCCBDD" /><line x1="160" y1="11" x2="160" y2="80" stroke="#9BADBF" stroke-width="2" stroke-linecap="round" /><rect x="151" y="76" width="18" height="18" rx="6" fill="url(#metal)"  /><path d="M149 87 Q111 102 88 141 Q161 172 233 141 Q208 103 171 87 Z" fill="url(#enamel)" stroke="#BFCEE0" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" /><ellipse cx="160" cy="141" rx="73" ry="18" fill="url(#side)" /><ellipse cx="160" cy="143" rx="65" ry="12" fill="#FFE9C4" /><path d="M103 148 L77 200 H245 L216 148 Z" fill="url(#beam)" stroke="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /><ellipse cx="160" cy="143" rx="56" ry="8" fill="#FFF7E5" /><path d="M146 95 Q122 112 110 135" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></g></svg>
+ </defs>
+ <g data-art="chandelier">
+  <ellipse cx="160" cy="194" rx="105" ry="8" fill="#8DA4BF" opacity=".10"/>
+  <g class="motion-glow" fill="#FFDA9C" opacity=".24" filter="url(#glow)">
+   <circle cx="118" cy="81" r="23"/><circle cx="202" cy="81" r="23"/>
+   <circle cx="60" cy="116" r="27"/><circle cx="260" cy="116" r="27"/>
+   <circle cx="110" cy="155" r="27"/><circle cx="210" cy="155" r="27"/>
+  </g>
+  <g filter="url(#soft)">
+   <rect x="136" y="5" width="48" height="9" rx="4.5" fill="url(#enamel)" stroke="#BCCBDD"/>
+   <path d="M160 14V112" fill="none" stroke="#ABBED2" stroke-width="4" stroke-linecap="round"/>
+   <path d="M159 15V108" fill="none" stroke="#FFFFFF" stroke-width="1.4" stroke-linecap="round"/>
+   <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M160 112C142 112 124 116 118 98M160 112C178 112 196 116 202 98M160 119C122 149 74 153 60 134M160 119C198 149 246 153 260 134M160 125C160 167 123 186 110 173M160 125C160 167 197 186 210 173" stroke="#A9BCD1" stroke-width="6"/>
+    <path d="M160 111C142 111 124 115 118 97M160 111C178 111 196 115 202 97M160 118C122 148 74 152 60 133M160 118C198 148 246 152 260 133M160 124C160 166 123 185 110 172M160 124C160 166 197 185 210 172" stroke="#F7FBFF" stroke-width="3.2"/>
+   </g>
+   <ellipse cx="160" cy="112" rx="15" ry="6" fill="url(#enamel)" stroke="#BACADD"/>
+   <path d="M146 112V124C146 133 174 133 174 124V112" fill="url(#side)" stroke="#B7C8DB"/>
+   <ellipse cx="160" cy="112" rx="14" ry="5" fill="url(#enamel)"/>
+   <g fill="url(#metal)" stroke="#B2C4D7" stroke-width=".7">
+    <rect x="112" y="94" width="12" height="6" rx="3"/><rect x="196" y="94" width="12" height="6" rx="3"/>
+    <rect x="53" y="130" width="14" height="6" rx="3"/><rect x="253" y="130" width="14" height="6" rx="3"/>
+    <rect x="103" y="168" width="14" height="6" rx="3"/><rect x="203" y="168" width="14" height="6" rx="3"/>
+   </g>
+   <g fill="url(#enamel)" stroke="#C3D1E2" stroke-width="1.1">
+    <circle data-lamp="1" cx="118" cy="81" r="16"/><circle data-lamp="2" cx="202" cy="81" r="16"/>
+    <circle data-lamp="3" cx="60" cy="116" r="19"/><circle data-lamp="4" cx="260" cy="116" r="19"/>
+    <circle data-lamp="5" cx="110" cy="155" r="19"/><circle data-lamp="6" cx="210" cy="155" r="19"/>
+   </g>
+   <g fill="#FFF0CF" opacity=".62">
+    <ellipse cx="118" cy="86" rx="10" ry="8"/><ellipse cx="202" cy="86" rx="10" ry="8"/>
+    <ellipse cx="60" cy="122" rx="12" ry="9"/><ellipse cx="260" cy="122" rx="12" ry="9"/>
+    <ellipse cx="110" cy="161" rx="12" ry="9"/><ellipse cx="210" cy="161" rx="12" ry="9"/>
+   </g>
+   <g fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" opacity=".9">
+    <path d="M108 76Q111 69 118 69M192 76Q195 69 202 69M48 112Q51 102 60 102M248 112Q251 102 260 102M98 151Q101 141 110 141M198 151Q201 141 210 141"/>
+   </g>
+  </g>
+ </g>
+</svg>

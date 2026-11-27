@@ -5,7 +5,7 @@
   <filter id="strip-glow" x="-20%" y="-35%" width="140%" height="170%"><feGaussianBlur stdDeviation="4"/></filter>
  </defs>
  <ellipse cx="161" cy="190" rx="98" ry="6" fill="#7F96B2" opacity=".13"/>
- <path d="M219 153 C180 177 100 177 68 139 C30 94 104 52 173 67 C228 79 234 113 208 132 C188 147 136 145 111 129 C84 110 116 91 152 93 C206 95 203 126 163 125 C147 125 138 117 146 110" fill="none" stroke="#FFD992" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity=".45" filter="url(#strip-glow)"/>
+ <path class="motion-glow" d="M219 153 C180 177 100 177 68 139 C30 94 104 52 173 67 C228 79 234 113 208 132 C188 147 136 145 111 129 C84 110 116 91 152 93 C206 95 203 126 163 125 C147 125 138 117 146 110" fill="none" stroke="#FFD992" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity=".45" filter="url(#strip-glow)"/>
  <path d="M219 153 C180 177 100 177 68 139 C30 94 104 52 173 67 C228 79 234 113 208 132 C188 147 136 145 111 129 C84 110 116 91 152 93 C206 95 203 126 163 125 C147 125 138 117 146 110" transform="translate(0 4)" fill="none" stroke="#B8CADC" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
  <path d="M219 153 C180 177 100 177 68 139 C30 94 104 52 173 67 C228 79 234 113 208 132 C188 147 136 145 111 129 C84 110 116 91 152 93 C206 95 203 126 163 125 C147 125 138 117 146 110" fill="none" stroke="url(#strip-light)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
  <path d="M219 153 C180 177 100 177 68 139 C30 94 104 52 173 67 C228 79 234 113 208 132 C188 147 136 145 111 129 C84 110 116 91 152 93 C206 95 203 126 163 125 C147 125 138 117 146 110" fill="none" stroke="#FFF9E9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".65"/>

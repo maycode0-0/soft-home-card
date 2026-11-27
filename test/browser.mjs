@@ -18,6 +18,8 @@ try{
   const page=await browser.newPage({viewport:{width:1440,height:1000},deviceScaleFactor:1});
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.goto(`http://127.0.0.1:${port}`);await page.waitForFunction(()=>window.cards?.length===23&&window.cards.every(c=>c.shadowRoot.querySelector('ha-card')),{},{timeout:10000}).catch(error=>{throw new Error(`${error.message}\nBrowser errors: ${errors.join('\n')}`);});
+  // Exercise the full, spacious control surface before checking compact disclosures.
+  await page.evaluate(()=>cards.forEach(c=>c.setConfig({...c._config,compact:false})));
   const wait=()=>page.waitForTimeout(100);
   const evaluate=async fn=>{const value=await page.evaluate(fn);await wait();return value;};
   const check=async (name,fn)=>{await fn();results.push(name);console.log('PASS '+name);};
@@ -25,6 +27,30 @@ try{
     assert.equal(await page.locator('soft-home-card ha-card').count(),23);
     assert.equal(await page.locator('soft-home-card .hero svg').count(),22);
     assert.equal(await page.locator('soft-home-card img').count(),2);
+  });
+  await check('running motion advances smoothly, stops on pause and respects reduced motion and viewport visibility',async()=>{
+    const washer=page.locator('soft-home-card').first();
+    assert.equal(await washer.locator('ha-card').getAttribute('data-motion'),'wash');
+    const time=await washer.locator('.motion-drum').evaluate(el=>el.getAnimations()[0].currentTime);
+    await page.waitForTimeout(150);
+    await evaluate(()=>{window.motionSaved={phase:mock.states['sensor.washer_phase'],remaining:mock.states['sensor.remaining']};mock.states['sensor.remaining']={...motionSaved.remaining,state:'26'};mock.notify();});
+    assert.ok(await washer.locator('.motion-drum').evaluate((el,before)=>el.getAnimations()[0].currentTime>before,time),'readout updates preserve the animation phase');
+    await evaluate(()=>{mock.states['sensor.washer_phase']={...motionSaved.phase,state:'paused'};mock.notify();});
+    await page.waitForFunction(()=>cards[0].shadowRoot.querySelector('ha-card').dataset.motion==='');
+    assert.equal(await washer.locator('ha-card').getAttribute('data-motion'),'');
+    assert.equal(await washer.locator('.motion-drum').evaluate(el=>el.getAnimations().length),0);
+    await evaluate(()=>{mock.states['sensor.washer_phase']=motionSaved.phase;mock.states['sensor.remaining']=motionSaved.remaining;mock.notify();});
+    await page.waitForFunction(()=>cards[0].shadowRoot.querySelector('ha-card').dataset.motion==='wash');
+    await page.emulateMedia({reducedMotion:'reduce'});await wait();
+    assert.equal(await washer.evaluate(el=>el.shadowRoot.getAnimations().length),0);
+    await page.emulateMedia({reducedMotion:'no-preference'});await wait();
+    await page.locator('soft-home-card').last().scrollIntoViewIfNeeded();await wait();
+    await page.waitForFunction(()=>cards[0].hasAttribute('motion-paused'));
+    assert.equal(await washer.getAttribute('motion-paused'),'');
+    assert.ok(await washer.evaluate(el=>el.shadowRoot.getAnimations().every(a=>a.playState==='paused')));
+    await washer.scrollIntoViewIfNeeded();await wait();
+    await page.waitForFunction(()=>!cards[0].hasAttribute('motion-paused'));
+    assert.equal(await washer.getAttribute('motion-paused'),null);
   });
   await check('washer has focused parameters, native entity details and real pause/power targets',async()=>{
     const card=page.locator('soft-home-card').first();
@@ -231,6 +257,7 @@ try{
     await page.locator('#editor-close').click();
   });
   await page.reload();await page.waitForFunction(()=>window.cards?.length===23&&cards.every(c=>c.shadowRoot.querySelector('ha-card')));
+  await page.evaluate(()=>cards.forEach(c=>c.setConfig({...c._config,compact:false})));await wait();
   await check('specialized settings, presets, curtain and vacuum commands target their bound entities',async()=>{
     await page.locator('soft-home-card').nth(10).getByRole('button',{name:'50%',exact:true}).click();await wait();
     assert.deepEqual(await page.evaluate(()=>mock.calls.at(-1).data),{brightness_pct:50});
@@ -249,12 +276,47 @@ try{
     await page.locator('soft-home-card').nth(21).getByRole('button',{name:'暂停清洁',exact:true}).click();await wait();
     assert.deepEqual(await page.evaluate(()=>mock.calls.at(-1)),{domain:'vacuum',service:'pause',data:{},target:{entity_id:'vacuum.robot'}});
   });
+  await check('compact door lock aligns unlock with doorbell and folds access actions',async()=>{
+    const lock=page.locator('soft-home-card').nth(20);
+    await evaluate(()=>{window.lockConfig=cards[20]._config;cards[20].setConfig({...lockConfig,compact:true});});
+    const advanced=lock.locator('[data-device-section=access]');
+    const temporaryCode=advanced.locator('[data-feature=temporary_code]');
+    const authorizations=advanced.locator('[data-info="sensor.door_lock_authorizations"]');
+    const controls=lock.locator('.lock-controls');
+    const unlock=controls.getByRole('button',{name:'解锁',exact:true});
+    const doorbell=controls.locator('[data-info="binary_sensor.door_lock_doorbell"]');
+    assert.equal(await advanced.getByText('高级功能',{exact:true}).isVisible(),true);
+    assert.equal(await advanced.getAttribute('open'),null);
+    assert.equal(await temporaryCode.isVisible(),false);
+    assert.equal(await authorizations.isVisible(),false);
+    assert.equal(await lock.locator('.lock-art').count(),0);
+    assert.equal(await lock.locator('.snapshot-button').isVisible(),true);
+    const left=await unlock.boundingBox(),right=await doorbell.boundingBox();
+    assert.ok(left&&right&&left.x+left.width<=right.x&&Math.abs(left.y-right.y)<1);
+    assert.ok(Math.abs(left.width-right.width)<1&&Math.abs(left.height-right.height)<1);
+    await doorbell.click();
+    assert.equal(await page.evaluate(()=>lastMoreInfo),'binary_sensor.door_lock_doorbell');
+    await advanced.locator('summary').press('Enter');
+    await temporaryCode.click();await wait();
+    assert.deepEqual(await page.evaluate(()=>mock.calls.at(-1)),{domain:'button',service:'press',data:{},target:{entity_id:'button.door_lock_temporary_code'}});
+    assert.equal(await advanced.getAttribute('open'),'');
+    await authorizations.click();
+    assert.equal(await page.evaluate(()=>lastMoreInfo),'sensor.door_lock_authorizations');
+    await advanced.locator('summary').click();
+    await evaluate(()=>cards[20].setConfig(lockConfig));
+  });
   await check('door history loads on demand and camera PTZ/playback use actual bound buttons',async()=>{
     const lock=page.locator('soft-home-card').nth(20);
     await lock.locator('[data-history]').click();await wait();assert.equal(await lock.locator('.history-item').count(),4);
+    assert.equal(await lock.locator('.history-count').innerText(),'4');
     await evaluate(()=>{mock.states['sensor.door_lock_battery']={...mock.states['sensor.door_lock_battery'],state:'59'};mock.notify();});
     assert.equal(await lock.locator('.history-item').count(),4);
     const camera=page.locator('soft-home-card').nth(22);
+    assert.equal(await camera.getByText('录像中',{exact:true}).count(),1);
+    assert.equal(await camera.locator('[data-info=""]').count(),1);
+    assert.equal(await camera.getByRole('button',{name:'播放实时画面',exact:true}).count(),1);
+    await camera.locator('img[data-device-picture]').dispatchEvent('error');
+    assert.equal(await camera.getByText('画面暂不可用',{exact:true}).isVisible(),true);
     await camera.getByRole('button',{name:'向左',exact:true}).click();await wait();
     assert.deepEqual(await page.evaluate(()=>mock.calls.at(-1)),{domain:'button',service:'press',data:{},target:{entity_id:'button.camera_ptz_left'}});
     await camera.locator('[data-device-section=playback] summary').click();
@@ -269,6 +331,41 @@ try{
     assert.equal(await page.evaluate(()=>cards[22].shadowRoot.querySelector('ha-camera-stream').hass===cards[22].hass),true);
     await camera.locator('[data-live]').click();await wait();assert.equal(await camera.locator('ha-camera-stream').count(),0);
   });
+  await check('ONVIF camera controls appear when PTZ loads and serialize movement',async()=>{
+    const camera=page.locator('soft-home-card').nth(22);
+    await evaluate(()=>{
+      const entity='camera.tp_ipc_mainstream';
+      const config=cards[22]._config;
+      mock.states[entity]={...mock.states[config.entity],entity_id:entity,attributes:{friendly_name:'TP-IPC mainStream'}};
+      mock.entities[entity]={entity_id:entity,platform:'onvif'};
+      window.ptzTest={config,callService:mock.callService};
+      cards[22].setConfig({device:'camera',entity});
+      mock.notify();
+    });
+    assert.equal(await camera.locator('.ptz-pad button').count(),0);
+    await evaluate(()=>{mock.services.onvif={ptz:{}};mock.notify();});
+    assert.equal(await camera.locator('.ptz-pad button').count(),4);
+    await page.evaluate(()=>{
+      mock.callService=async function(...args){
+        this.calls.push({domain:args[0],service:args[1],data:args[2],target:args[3]});
+        await new Promise(resolve=>{ptzTest.finish=resolve;});
+      };
+      mock.notify();
+      const root=cards[22].shadowRoot;
+      root.querySelector('[data-feature=ptz_left]').click();
+      root.querySelector('[data-feature=ptz_up]').click();
+    });
+    await camera.locator('[data-feature=ptz_up]:disabled').waitFor();
+    assert.deepEqual(await page.evaluate(()=>mock.calls.filter(call=>call.domain==='onvif')),[
+      {domain:'onvif',service:'ptz',data:{pan:'LEFT',move_mode:'ContinuousMove',distance:0.5,continuous_duration:0.4},target:{entity_id:'camera.tp_ipc_mainstream'}},
+    ]);
+    await evaluate(()=>{ptzTest.finish();mock.callService=ptzTest.callService;});
+    assert.equal(await camera.locator('[data-feature=ptz_up]').isEnabled(),true);
+    await evaluate(()=>{
+      delete mock.states['camera.tp_ipc_mainstream'];delete mock.entities['camera.tp_ipc_mainstream'];delete mock.services.onvif;
+      cards[22].setConfig(ptzTest.config);mock.notify();
+    });
+  });
   await check('new device editor binds camera roles and clears nested fields on device changes',async()=>{
     await page.getByRole('button',{name:'打开可视化编辑器'}).click();
     await editor.locator('select[data-field=device]').selectOption('camera');
@@ -279,8 +376,11 @@ try{
     await picker('features.ptz_left').getByRole('button',{name:'清除向左'}).click();
     assert.equal(await page.evaluate(()=>lastEditorConfig.features.ptz_left),undefined);
     assert.equal(await page.evaluate(()=>lastEditorConfig.features.ptz_right),'button.camera_ptz_right');
+    await editor.locator('select[data-field=onvif_ptz]').selectOption('RelativeMove');
+    assert.equal(await page.evaluate(()=>lastEditorConfig.onvif_ptz),'RelativeMove');
     await editor.locator('select[data-field=device]').selectOption('curtain');
     assert.equal(await page.evaluate(()=>lastEditorConfig.features),undefined);
+    assert.equal(await page.evaluate(()=>lastEditorConfig.onvif_ptz),undefined);
     await page.locator('#editor-close').click();
     await page.reload();await page.waitForFunction(()=>window.cards?.length===23&&cards.every(c=>c.shadowRoot.querySelector('ha-card')));
   });
@@ -314,6 +414,91 @@ try{
       await page.setViewportSize({width,height:900});
       await page.evaluate(()=>{for(const c of cards)for(const d of c.shadowRoot.querySelectorAll('details'))d.open=true;});await wait();
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth&&cards.every(c=>{const el=c.shadowRoot.querySelector('ha-card');return el.scrollWidth<=el.clientWidth+2;})),true,`expanded gallery at ${width}px`);
+    }
+  });
+  await check('home preview filters attention and rooms without resetting interactions or theme',async()=>{
+    await page.setViewportSize({width:1440,height:1270});
+    await page.goto(`http://127.0.0.1:${port}/demo/home.html`);
+    await page.waitForFunction(()=>window.cards?.length===15&&cards.every(c=>c.shadowRoot.querySelector('ha-card')));
+    const dimensions=await page.evaluate(()=>({columns:getComputedStyle(document.querySelector('#gallery')).gridTemplateColumns.split(' ').length,cards:cards.map(c=>({compact:c.hasAttribute('compact'),height:c.getBoundingClientRect().height}))}));
+    assert.equal(dimensions.columns,4);
+    assert.ok(dimensions.cards.every(c=>c.compact&&c.height<430),'compact home cards fit within 430px');
+    await page.screenshot({path:path.join(root,'test-results/home-preview.png'),fullPage:true});
+    await page.screenshot({path:path.join(root,'test-results/home-overview.png')});
+    await page.locator('#attention').click();
+    assert.equal(await page.locator('#gallery>section:visible').count(),3);
+    assert.equal(await page.locator('#gallery>section:visible .availability-note.unavailable').count(),3);
+    assert.equal(await page.locator('#gallery>section:visible [data-command]').count(),0);
+    await page.locator('#rooms button[data-room="客厅"]').click();
+    const light=page.locator('soft-home-card').filter({has:page.locator('ha-card[aria-label="幕布左边射灯"]')});
+    await light.locator('[data-device-section="light-settings"] summary').click();
+    await light.getByRole('button',{name:'50%',exact:true}).click();await wait();
+    assert.equal(await light.locator('#brightness').inputValue(),'50');
+    assert.equal(await light.locator('[data-device-section="light-settings"]').getAttribute('open'),'');
+    await page.locator('#rooms button[data-room="厨房"]').click();
+    assert.equal(await page.locator('#gallery>section:visible').count(),1);
+    await page.locator('#rooms button[data-room="客厅"]').click();
+    assert.equal(await light.locator('#brightness').inputValue(),'50');
+    const callsBefore=await page.evaluate(()=>mock.calls.length);
+    await page.locator('#running').click();await wait();
+    await page.waitForFunction(()=>cards.some(c=>c.shadowRoot.querySelector('ha-card').dataset.motion==='wash'));
+    assert.equal(await page.locator('soft-home-card ha-card[data-motion=wash]').count(),1);
+    assert.equal(await page.locator('soft-home-card ha-card[data-motion=air]').count(),1);
+    assert.equal(await page.locator('soft-home-card ha-card[data-motion=clean]').count(),1);
+    assert.equal(await page.evaluate(()=>mock.calls.length),callsBefore);
+    await page.locator('#running').click();await wait();
+    await page.waitForFunction(()=>!cards.some(c=>c.shadowRoot.querySelector('ha-card').dataset.motion==='wash'));
+    assert.equal(await light.locator('#brightness').inputValue(),'50');
+    assert.equal(await page.locator('soft-home-card ha-card[data-motion=wash]').count(),0);
+    await page.locator('#theme').click();await wait();
+    assert.equal(await page.locator('soft-home-card[dark]').count(),15);
+    await page.locator('#rooms button[data-room="全部"]').click();
+    await page.locator('#notice').waitFor({state:'hidden'});
+    await page.screenshot({path:path.join(root,'test-results/home-dark.png'),fullPage:true});
+    await page.locator('#readonly').click();await wait();
+    assert.equal(await page.locator('soft-home-card [data-command]').count(),0);
+    await page.locator('#readonly').click();await page.locator('#theme').click();await wait();
+    for(const width of [375,768,1024,280]){
+      await page.setViewportSize({width,height:900});await wait();
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth&&cards.every(c=>{const el=c.shadowRoot.querySelector('ha-card');return el.scrollWidth<=el.clientWidth+2;})),true,`home preview at ${width}px`);
+    }
+    await page.setViewportSize({width:375,height:900});
+    await page.reload();await page.waitForFunction(()=>window.cards?.length===15&&cards.every(c=>c.shadowRoot.querySelector('ha-card')));
+    await page.screenshot({path:path.join(root,'test-results/home-mobile.png'),fullPage:true});
+  });
+  await check('compact controls keep real targets, preserve disclosures and retain the spacious option',async()=>{
+    await page.setViewportSize({width:1440,height:1000});
+    await page.goto(`http://127.0.0.1:${port}/demo/home.html?running=1`);
+    await page.waitForFunction(()=>window.cards?.length===15&&cards.every(c=>c.shadowRoot.querySelector('ha-card')));
+    const climate=page.locator('soft-home-card').first();
+    assert.equal(await climate.locator('.mode-chips').isVisible(),false);
+    await climate.getByRole('button',{name:'升高温度'}).click();await wait();
+    assert.equal(await page.evaluate(()=>mock.calls.at(-1).target.entity_id),'climate.preview_living');
+    await climate.locator('[data-device-section="climate-settings"]>summary').click();
+    await climate.locator('[data-command="mode"][data-value="heat"]').click();await wait();
+    assert.equal(await page.evaluate(()=>mock.calls.at(-1).data.hvac_mode),'heat');
+    assert.equal(await climate.locator('[data-device-section="climate-settings"]').getAttribute('open'),'');
+    const compactHeight=await climate.evaluate(el=>el.getBoundingClientRect().height);
+    await page.evaluate(()=>cards[0].setConfig({...cards[0]._config,compact:false}));await wait();
+    assert.equal(await climate.getAttribute('compact'),null);
+    assert.equal(await climate.locator('.mode-chips').isVisible(),true);
+    await page.evaluate(()=>cards[0].setConfig({...cards[0]._config,compact:true}));await wait();
+    assert.ok(await climate.evaluate(el=>el.getBoundingClientRect().height)<compactHeight);
+    const washer=page.locator('soft-home-card').nth(5);
+    assert.equal(await washer.locator('.washer-safety').isVisible(),false);
+    await washer.locator('.washer-details>summary').click();
+    assert.equal(await washer.locator('.washer-safety').isVisible(),true);
+    await washer.getByRole('button',{name:'暂停洗涤',exact:true}).click();await wait();
+    assert.equal(await page.evaluate(()=>mock.calls.at(-1).target.entity_id),'switch.preview_washer_start');
+    assert.equal(await washer.locator('.washer-details').getAttribute('open'),'');
+    await page.reload();await page.waitForFunction(()=>window.cards?.length===15&&cards.every(c=>c.shadowRoot.querySelector('ha-card')));
+    await page.locator('#notice').waitFor({state:'hidden'});
+    await page.evaluate(()=>window.scrollTo(0,0));
+    await page.screenshot({path:path.join(root,'docs/home-compact-preview.png')});
+    for(const width of [1440,1024,768,375,280]){
+      await page.setViewportSize({width,height:1000});
+      await page.evaluate(()=>cards.forEach(c=>c.shadowRoot.querySelectorAll('details').forEach(d=>d.open=true)));await wait();
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth&&cards.every(c=>{const el=c.shadowRoot.querySelector('ha-card');return el.scrollWidth<=el.clientWidth+2;})),true,`expanded compact home at ${width}px`);
     }
   });
   await page.goto(`http://127.0.0.1:${port}/demo/washer.html`);

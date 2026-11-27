@@ -58,6 +58,10 @@ export function createMock(){
       if(data.percentage!==undefined)attributes.percentage=data.percentage;
       if(data.position!==undefined){attributes.current_position=data.position;value=data.position===0?'closed':'open';}
       if(data.hvac_mode!==undefined)value=data.hvac_mode;
+      if(domain==='climate'){
+        if(service==='turn_on')value=(attributes.hvac_modes||[]).find(mode=>mode!=='off')||'heat';
+        attributes.hvac_action=({heat:'heating',cool:'cooling',dry:'drying',fan_only:'fan'})[value]||'idle';
+      }
       if(data.operation_mode!==undefined){attributes.operation_mode=data.operation_mode;value=data.operation_mode;}
       if(domain==='lock'&&['lock','unlock'].includes(service))value=service==='lock'?'locked':'unlocked';
       if(domain==='vacuum'){if(service==='start')value='cleaning';if(service==='pause')value='paused';if(service==='return_to_base')value='returning';if(service==='stop')value='idle';if(data.fan_speed)attributes.fan_speed=data.fan_speed;}

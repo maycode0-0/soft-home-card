@@ -16,7 +16,7 @@ const TYPE_MATCH = {
   wall_light: /壁灯|wall[ _-]?(?:light|lamp)|sconce/i,
   spotlight: /射灯|spot[ _-]?light/i,
   downlight: /筒灯|down[ _-]?light|recessed/i,
-  pendant_light: /吊灯|pendant|chandelier/i,
+  pendant_light: /主灯|吊灯|pendant|chandelier|(?:^|[ ._-])(?:main|primary)[ _-]?(?:light|lamp)(?:$|[ ._-])/i,
   led_strip: /灯带|灯条|led[ _-]?strip|light[ _-]?strip/i,
   tea_machine: /茶吧|饮水|净饮|tea[ _-]?machine|water[ _-]?dispenser|kettle/i,
   bathroom_mirror: /浴室镜|镜灯|镜前|bathroom[ _-]?mirror|mirror/i,
@@ -120,7 +120,7 @@ export function selectDeviceScope(hass,config,key) {
 }
 export function clearEntityBindings(config) {
   const next={...config};
-  for(const key of ['device_id','entity_group','entity','primary_entity','primary_attribute','primary_label','primary_unit','secondary_entity','power_entity','progress_entity','auxiliary','metrics','actions','invert_position','washer','features'])delete next[key];
+  for(const key of ['device_id','entity_group','entity','primary_entity','primary_attribute','primary_label','primary_unit','secondary_entity','power_entity','progress_entity','auxiliary','metrics','actions','invert_position','washer','features','onvif_ptz'])delete next[key];
   return next;
 }
 export function fieldLabels(kind) {

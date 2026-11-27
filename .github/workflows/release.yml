@@ -34,7 +34,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           node scripts/check.mjs --tag "$RELEASE_TAG"
-          git diff --exit-code -- dist/soft-home-card.js
+          git diff --exit-code -- dist/soft-home-card.js dist/soft-home-more-info.js
       - name: Generate notes and checksums
         run: node scripts/release-notes.mjs "$RUNNER_TEMP/release-notes.md"
       - name: Publish GitHub release
@@ -44,7 +44,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: >-
           gh release create "$RELEASE_TAG"
-          dist/soft-home-card.js dist/SHA256SUMS
+          dist/soft-home-card.js dist/soft-home-more-info.js dist/SHA256SUMS
           --verify-tag
           --title "Soft Home Card $RELEASE_TAG"
           --notes-file "$RUNNER_TEMP/release-notes.md"

@@ -1,12 +1,13 @@
 import { ART } from './art.js';
 import { DEVICES, validateConfig, buildView, commandFor, auxiliaryCommand, actionCommand, escapeHTML } from './model.js';
 import { CARD_CSS } from './styles.js';
-import { SoftHomeCardEditor } from './editor.js';
 import { washerView, washerCommand } from './washer.js';
 import { WASHER_CSS } from './washer-styles.js';
 import { deviceLayout } from './device-layouts.js';
-import { deviceCommand } from './devices.js';
+import { deviceCommand, onvifPtzAvailable } from './devices.js';
 import { DEVICE_CSS } from './device-styles.js';
+import { deviceMotion } from './motion.js';
+import { COMPACT_CSS } from './compact-styles.js';
 
 export class SoftHomeCard extends HTMLElement {
   constructor(){super();this.attachShadow({mode:'open'});this._busy=new Set();this._error='';this._interaction=false;
@@ -18,15 +19,25 @@ export class SoftHomeCard extends HTMLElement {
     this.shadowRoot.addEventListener('pointercancel',()=>{this._interaction=false;this._schedule();});
     this.shadowRoot.addEventListener('focusout',()=>{this._interaction=false;this._schedule();});
     this.shadowRoot.addEventListener('error',event=>{
-      if(event.target.matches?.('[data-device-picture]')){event.target.hidden=true;const message=document.createElement('span');message.className='media-unavailable';message.textContent='画面暂不可用，点按查看实体详情';event.target.parentElement.append(message);}
+      if(event.target.matches?.('[data-device-picture]')){
+        event.target.hidden=true;
+        const message=document.createElement('span');
+        message.className='media-unavailable';
+        message.textContent=event.target.closest('.camera-frame')?'画面暂不可用':'画面暂不可用，点按查看实体详情';
+        event.target.parentElement.append(message);
+      }
     },true);
   }
   setConfig(config){const next=validateConfig(config);if(next.device!==this._config?.device||next.entity!==this._config?.entity||next.features?.event!==this._config?.features?.event){this._history=null;this._historyOpen=false;this._live=false;this._streamElement=null;}this._config=next;this._lastRender='';this._error='';this._interaction=false;this._schedule();}
   set hass(hass){this._hass=hass;if(this._streamElement)Object.assign(this._streamElement,{hass,stateObj:hass.states?.[this._config?.entity]});this._schedule();}
   get hass(){return this._hass;}
-  connectedCallback(){this._schedule();}
-  disconnectedCallback(){cancelAnimationFrame(this._raf);this._raf=0;this._interaction=false;}
-  getCardSize(){return this._config?.show_stats===false?9:11;}
+  connectedCallback(){
+    this._motionVisibility=()=>this.toggleAttribute('motion-paused',document.hidden||this._motionVisible===false);
+    if(globalThis.IntersectionObserver){this._motionObserver=new IntersectionObserver(([entry])=>{this._motionVisible=entry.isIntersecting;this._motionVisibility();},{rootMargin:'60px'});this._motionObserver.observe(this);}
+    document.addEventListener('visibilitychange',this._motionVisibility);this._motionVisibility();this._schedule();
+  }
+  disconnectedCallback(){cancelAnimationFrame(this._raf);this._raf=0;this._interaction=false;this._motionObserver?.disconnect();document.removeEventListener('visibilitychange',this._motionVisibility);}
+  getCardSize(){return this._config?.compact?7:this._config?.show_stats===false?9:11;}
   getGridOptions(){return {columns:12,rows:'auto',min_columns:6};}
   static getConfigElement(){return document.createElement('soft-home-card-editor');}
   static getStubConfig(){return {type:'custom:soft-home-card',device:'washing_machine',show_stats:true};}
@@ -48,6 +59,9 @@ export class SoftHomeCard extends HTMLElement {
     const opened=this.shadowRoot.querySelector('details[data-washer-settings]')?.open;
     const remaining=w.hasRemaining?v.primary.text:'—',unit=v.primary.unit==='min'?'分钟':v.primary.unit;
     const progress=w.progress===null?null:Math.round(w.progress*100);
+    const quickMarkup=quick.length?`<section class="washer-quick" style="--washer-columns:${quick.length}" aria-label="常用洗涤参数">${quick.map(tile).join('')}</section>`:'';
+    const safetyMarkup=safety.length?`<section class="washer-safety" aria-label="安全状态">${safety.map(field=>`<button class="${field.warning?'warning':''}" data-info="${E(field.entity)}">${icon(field.icon)}<span>${E(field.name)} · ${E(field.text)}</span></button>`).join('')}</section>`:'';
+    const usageMarkup=usage.length?`<section class="washer-usage" aria-label="用量与概览"><span class="washer-label">${c.metrics?'设备概览':v.power?'用量与功率':'本次用量'}</span><div class="metric-grid" style="--metrics:${usage.length}">${usage.map(m=>`<div class="metric"><span class="metric-label">${E(m.name)}</span><span class="metric-value">${E(v.online?m.text:'—')} <span class="metric-unit">${E(v.online?m.unit:'')}</span></span></div>`).join('')}</div></section>`:'';
     return `<ha-card class="washer-card" style="--accent:var(--soft-${v.accent});--washer-action:${v.accent==='warm'?'#966022':'#286fc4'}" aria-label="${E(v.name)}">
       <header class="header"><div class="identity"><button class="name" data-info>${E(v.name)}</button><div class="room" title="${E(v.room)}">${E(v.room)}</div></div><span class="status ${!v.online||v.off||/待机|暂停/.test(w.status)?'neutral':''}">${E(w.status)}</span><button class="icon-button washer-more" data-info aria-label="查看${E(v.name)}详情">${icon('mdi:dots-horizontal')}</button></header>
       ${w.alerts.length?`<div class="washer-alert" role="alert">${icon('mdi:alert-circle-outline')}<span>${E(w.alerts.map(f=>f.name+' · '+f.text).join('，'))}</span></div>`:''}
@@ -57,18 +71,19 @@ export class SoftHomeCard extends HTMLElement {
         <div class="washer-progress-label"><span>${icon('mdi:progress-clock')}${E(w.phase)}</span><span>${progress===null?'':`${progress}%`}</span></div>
         ${progress!==null?`<div class="washer-progress" role="progressbar" aria-label="洗涤进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span style="width:${progress}%"></span></div>`:''}
       </section>
-      ${quick.length?`<section class="washer-quick" style="--washer-columns:${quick.length}" aria-label="常用洗涤参数">${quick.map(tile).join('')}</section>`:''}
+      ${c.compact?'':quickMarkup}
       <div class="washer-actions">${w.controls.map(control=>`<button class="${control.key==='start'?'washer-start':''}" ${control.key==='main-power'?'data-command="power"':`data-washer="${control.key}"`} ${control.disabled||this._busy.has(control.key==='main-power'?'power':'washer-'+control.key)?'disabled':''}>${icon(control.icon)}${E(control.label)}</button>`).join('')}${!w.controls.length&&!extras?'<button data-info>查看设备详情 ›</button>':''}</div>
       ${extras?`<div class="extra washer-extras">${extras}</div>`:''}
       ${v.caps.controls.length?`<div class="controls">${v.caps.controls.map(control=>this._control(control)).join('')}</div>`:''}
       ${this._busy.size?'<div class="busy" role="status">正在发送操作…</div>':''}
-      ${safety.length?`<section class="washer-safety" aria-label="安全状态">${safety.map(field=>`<button class="${field.warning?'warning':''}" data-info="${E(field.entity)}">${icon(field.icon)}<span>${E(field.name)} · ${E(field.text)}</span></button>`).join('')}</section>`:''}
-      ${settings.length?`<details class="washer-details" data-washer-settings ${opened?'open':''}><summary><span>${icon('mdi:tune-variant')}更多设置与状态</span><span class="washer-chevron" aria-hidden="true">⌄</span></summary><div class="washer-setting-grid">${settings.map(tile).join('')}</div></details>`:''}
-      ${usage.length?`<section class="washer-usage" aria-label="用量与概览"><span class="washer-label">${c.metrics?'设备概览':v.power?'用量与功率':'本次用量'}</span><div class="metric-grid" style="--metrics:${usage.length}">${usage.map(m=>`<div class="metric"><span class="metric-label">${E(m.name)}</span><span class="metric-value">${E(v.online?m.text:'—')} <span class="metric-unit">${E(v.online?m.unit:'')}</span></span></div>`).join('')}</div></section>`:''}
+      ${c.compact?'':safetyMarkup}
+      ${settings.length||c.compact&&(quick.length||safety.length||usage.length)?`<details class="washer-details" data-washer-settings ${opened?'open':''}><summary><span>${icon('mdi:tune-variant')}${c.compact?'参数与更多设置':'更多设置与状态'}</span><span class="washer-chevron" aria-hidden="true">⌄</span></summary>${c.compact?quickMarkup+safetyMarkup:''}<div class="washer-setting-grid">${settings.map(tile).join('')}</div>${c.compact?usageMarkup:''}</details>`:''}
+      ${c.compact?'':usageMarkup}
       ${this._error?`<div class="error" role="alert">${E(this._error)}</div>`:''}
     </ha-card>`;
   }
   _render(){if(!this._hass||!this._config||this._interaction)return;const c=this._config,E=escapeHTML;
+    this.toggleAttribute('compact',c.compact===true);
     if(!c.entity){
       this.toggleAttribute('dark',c.theme==='dark'||c.theme==='auto'&&!!this._hass.themes?.darkMode);
       this.shadowRoot.innerHTML=`<style>${CARD_CSS}</style><ha-card><p class="main-title">${E(c.name||DEVICES[c.device][0])}</p><div class="hero">${ART[c.device].replace(/(<text\b[^>]*data-readout="\d+"[^>]*>)[\s\S]*?(<\/text>)/g,'$1—$2')}</div><p role="status">请在编辑器中选择具体设备和主实体。</p></ha-card>`;
@@ -77,13 +92,12 @@ export class SoftHomeCard extends HTMLElement {
     const v=buildView(this._hass,c);
     const dark=c.theme==='dark'||(c.theme==='auto'&&!!this._hass.themes?.darkMode);this.toggleAttribute('dark',dark);
     const w=c.device==='washing_machine'?washerView(this._hass,c,v):null;
-    const renderKey=JSON.stringify([v,w,c,Object.values(c.features||{}).map(id=>this._hass.states?.[id]),this._hass.states?.[c.entity],this._history,this._historyOpen,this._live,[...this._busy],this._error,dark]);if(renderKey===this._lastRender)return;this._lastRender=renderKey;
+    const renderKey=JSON.stringify([v,w,c,Object.values(c.features||{}).map(id=>this._hass.states?.[id]),this._hass.states?.[c.entity],onvifPtzAvailable(this._hass,c),this._history,this._historyOpen,this._live,[...this._busy],this._error,dark]);if(renderKey===this._lastRender)return;this._lastRender=renderKey;
     const focused=this.shadowRoot.activeElement;
     const focusKind=focused?.hasAttribute('data-control')?'control':'command',focusKey=focused?.dataset?.[focusKind];
     const focusIndex=focusKey?[...this.shadowRoot.querySelectorAll(`[data-${focusKind}]`)].filter(el=>el.dataset[focusKind]===focusKey).indexOf(focused):-1;
     const transientFocus=['data-live','data-history','data-history-refresh'].find(attribute=>focused?.hasAttribute(attribute));
     const washerFocus=focused?.hasAttribute('data-washer')?['data-washer',focused.dataset.washer]:focused?.hasAttribute('data-info')?['data-info',focused.dataset.info]:focused?.matches('summary')?['summary',null]:null;
-    const circumference=2*Math.PI*34,fill=v.primary.ratio===null?0:v.primary.ratio*circumference;
     const value=v.primary.text,unit=v.primary.unit;
     const primaryString=value+(unit?` ${unit}`:'');
     let art=ART[c.device];
@@ -94,10 +108,11 @@ export class SoftHomeCard extends HTMLElement {
     const deviceMarkup=!w?deviceLayout(this,v,art,auxButtons+actionButtons):'';
     const openedSections=new Set([...this.shadowRoot.querySelectorAll('details[data-device-section][open]')].map(el=>el.dataset.deviceSection));
     const featureFocus=focused?.hasAttribute('data-feature')?focused.dataset.feature:null;
-    this.shadowRoot.innerHTML=w?`<style>${CARD_CSS}${WASHER_CSS}</style>${this._washerMarkup(v,w,art,auxButtons+actionButtons)}`:deviceMarkup?`<style>${CARD_CSS}${DEVICE_CSS}</style>${deviceMarkup}`:`<style>${CARD_CSS}</style><ha-card style="--accent:var(--soft-${v.accent})" aria-label="${E(v.name)}">
+    this.shadowRoot.innerHTML=w?`<style>${CARD_CSS}${WASHER_CSS}</style>${this._washerMarkup(v,w,art,auxButtons+actionButtons)}`:deviceMarkup?`<style>${CARD_CSS}${DEVICE_CSS}</style>${deviceMarkup}`:`<style>${CARD_CSS}</style><ha-card class="generic-card" style="--accent:var(--soft-${v.accent})" aria-label="${E(v.name)}">
       <header class="header"><button class="icon-button device-icon" data-info title="查看设备详情" aria-label="查看${E(v.name)}详情"><ha-icon icon="${v.icon}"></ha-icon></button><div class="identity"><button class="name" data-info>${E(v.name)}</button><div class="room" title="${E(v.room)}">${E(v.room)}</div></div><span class="status ${!v.online||v.off?'neutral':''}" title="${E(v.status)}">${E(v.status)}</span><button class="icon-button" ${v.caps.power?'data-command="power"':'data-info'} aria-label="${v.caps.power?(v.off?'开启':'关闭'):'查看详情'}" ${this._busy.has('power')?'disabled':''}><ha-icon icon="${v.caps.power?'mdi:power':'mdi:dots-horizontal'}"></ha-icon></button></header>
-      <button class="hero ${!v.online?'offline':v.off?'inactive':''}" data-info aria-label="查看${E(v.name)}详情">${art}</button>
-      <section class="panel"><div class="ring"><svg viewBox="0 0 80 80" aria-hidden="true"><circle class="track" cx="40" cy="40" r="34"/><circle class="fill" cx="40" cy="40" r="34" stroke-dasharray="${fill} ${circumference}"/></svg><div class="readout"><span class="value ${value.length>4?'small':''}">${E(value)}<span class="unit">${E(unit)}</span></span><span class="readout-label">${E(v.primary.label)}</span></div></div>
+      <section class="generic-overview"><div><span class="generic-kicker">${E(v.primary.label)}</span><strong class="generic-value ${value.length>5||['ON','OFF'].includes(value)?'textual':''}">${E(['ON','OFF'].includes(value)?v.status:value)}<small>${E(unit)}</small></strong><span class="generic-state">${E(v.status)}</span></div><button class="hero ${!v.online?'offline':v.off?'inactive':''}" data-info aria-label="查看${E(v.name)}详情">${art}</button></section>
+      ${c.progress_entity&&v.primary.ratio!==null?`<div class="generic-progress" role="progressbar" aria-label="运行进度" aria-valuenow="${Math.round(v.primary.ratio*100)}" aria-valuemin="0" aria-valuemax="100"><div class="control-label"><span>运行进度</span><output>${Math.round(v.primary.ratio*100)}%</output></div><div class="generic-progress-track"><span style="width:${v.primary.ratio*100}%"></span></div></div>`:''}
+      <section class="panel">
       <div class="main-info"><p class="main-title">${E(v.summary)}</p><p class="summary">${E(v.secondary?.valid?`${v.secondary.name} · ${v.secondary.text} ${v.secondary.unit}`:v.primary.label)}</p>
       <div class="controls">${v.caps.controls.map(control=>this._control(control)).join('')}</div>
       ${v.power?`<div class="power-reading"><span>当前功率</span><strong>${E(v.power.text)} ${E(v.power.unit)}</strong></div>`:''}
@@ -106,6 +121,17 @@ export class SoftHomeCard extends HTMLElement {
       ${auxButtons||actionButtons?`<div class="extra">${auxButtons}${actionButtons}</div>`:''}</section>
       ${c.show_stats&&v.metrics.length?`<section class="stats"><div class="stats-title">设备概览</div><div class="metric-grid" style="--metrics:${v.metrics.length}">${v.metrics.map(m=>`<div class="metric"><span class="metric-label" title="${E(m.name)}">${E(m.name)}</span><span class="metric-value">${E(m.text)} <span class="metric-unit">${E(m.unit)}</span></span></div>`).join('')}</div></section>`:''}
       ${this._error?`<div class="error" role="alert">${E(this._error)}</div>`:''}</ha-card>`;
+    if(c.compact){const style=document.createElement('style');style.textContent=COMPACT_CSS;this.shadowRoot.append(style);}
+    const motion=deviceMotion(this._hass,c,v,w);
+    if(motion!==this._motion){this._motion=motion;this._motionSince=performance.now();}
+    this.shadowRoot.querySelector('ha-card').dataset.motion=motion;
+    // Restore the phase after readout updates; no timers or animation frame loop.
+    if(motion)for(const animation of this.shadowRoot.getAnimations())animation.currentTime=performance.now()-this._motionSince;
+    if(!v.online||c.read_only){
+      const notice=document.createElement('div');notice.className='availability-note'+(!v.online?' unavailable':'');notice.setAttribute('role','status');
+      notice.innerHTML=`<ha-icon icon="mdi:${!v.online?'cloud-off-outline':'eye-outline'}" aria-hidden="true"></ha-icon><span>${!v.online?'暂时无法读取设备状态':'只读模式 · 仅查看设备状态'}</span>`;
+      this.shadowRoot.querySelector('ha-card .header')?.after(notice);
+    }
     if(focusKey){const targets=[...this.shadowRoot.querySelectorAll(`[data-${focusKind}]`)].filter(el=>el.dataset[focusKind]===focusKey),target=targets[focusIndex];if(target&&!target.disabled)target.focus({preventScroll:true});}
     if(transientFocus)this.shadowRoot.querySelector(`[${transientFocus}]`)?.focus({preventScroll:true});
     if(w&&washerFocus){const [attribute,value]=washerFocus;const target=attribute==='summary'?this.shadowRoot.querySelector('summary'):[...this.shadowRoot.querySelectorAll(`[${attribute}]`)].find(el=>el.getAttribute(attribute)===value&&!el.disabled);target?.focus({preventScroll:true});}
@@ -127,7 +153,11 @@ export class SoftHomeCard extends HTMLElement {
     if(button.hasAttribute('data-live')){if(!customElements.get('ha-camera-stream'))return this._info();this._live=!this._live;this._lastRender='';this._schedule();return;}
     if(button.hasAttribute('data-info'))return this._info(button.dataset.info||undefined);
     if(button.dataset.washer)return this._execute('washer-'+button.dataset.washer,()=>washerCommand(this._hass,this._config,button.dataset.washer));
-    if(button.dataset.feature)return this._execute('feature-'+button.dataset.feature,()=>deviceCommand(this._hass,this._config,button.dataset.feature));
+    if(button.dataset.feature){
+      const key=button.dataset.feature;
+      const busyKey=this._config.device==='camera'&&key.startsWith('ptz_')?'camera-ptz':'feature-'+key;
+      return this._execute(busyKey,()=>deviceCommand(this._hass,this._config,key));
+    }
     const {command,value,aux,action}=button.dataset;
     if(command)this._execute(command,()=>commandFor(this._hass,this._config,command,value));
     if(aux!==undefined)this._execute('aux-'+aux,()=>auxiliaryCommand(this._hass,this._config,Number(aux)));
@@ -153,6 +183,3 @@ export class SoftHomeCard extends HTMLElement {
     finally{this._busy.delete(key);this._lastRender='';this._schedule();}
   }
 }
-if(!customElements.get('soft-home-card'))customElements.define('soft-home-card',SoftHomeCard);
-window.customCards=window.customCards||[];
-if(!window.customCards.some(card=>card.type==='soft-home-card'))window.customCards.push({type:'soft-home-card',name:'Soft Home · 柔光设备卡片',description:'23 种设备外观，设备专属布局，原生实体控制，可视化配置。',preview:true});

@@ -7,7 +7,7 @@
     <radialGradient id="wall-halo"><stop stop-color="#FFE8B2" stop-opacity=".72"/><stop offset=".55" stop-color="#FFE5AD" stop-opacity=".26"/><stop offset="1" stop-color="#FFE5AD" stop-opacity="0"/></radialGradient>
     <filter id="wall-soft" x="-35%" y="-25%" width="175%" height="160%"><feDropShadow dx="3" dy="5" stdDeviation="4" flood-color="#6E87A6" flood-opacity=".2"/></filter>
   </defs>
-  <ellipse cx="179" cy="131" rx="76" ry="69" fill="url(#wall-halo)"/>
+  <ellipse class="motion-glow" cx="179" cy="131" rx="76" ry="69" fill="url(#wall-halo)"/>
   <ellipse cx="165" cy="194" rx="67" ry="5" fill="#7F96B2" opacity=".12"/>
   <g filter="url(#wall-soft)" stroke-linecap="round" stroke-linejoin="round">
     <path d="M104 78 112 73 124 79V138L116 145 104 138Z" fill="#A5B9CF" stroke="#94ABC3"/>

@@ -78,8 +78,8 @@ test('missing or removed device never falls back to all household entities',()=>
   assert.ok(groups.every(g=>g.entityIds.length===1));
 });
 test('changing device clears old targets, preserves presentation, and permits incomplete setup',()=>{
-  const c={device:'washing_machine',device_id:'old',entity:'sensor.old',primary_entity:'sensor.old',auxiliary:[{entity:'button.old'}],metrics:[{entity:'sensor.old'}],actions:[{label:'旧设备',action:'more-info'}],name:'洗衣',theme:'dark'};
-  assert.deepEqual(clearEntityBindings(c),{device:'washing_machine',name:'洗衣',theme:'dark'});
+  const c={device:'washing_machine',device_id:'old',entity:'sensor.old',primary_entity:'sensor.old',auxiliary:[{entity:'button.old'}],metrics:[{entity:'sensor.old'}],actions:[{label:'旧设备',action:'more-info'}],name:'洗衣',theme:'dark',compact:false};
+  assert.deepEqual(clearEntityBindings(c),{device:'washing_machine',name:'洗衣',theme:'dark',compact:false});
   assert.doesNotThrow(()=>validateConfig(clearEntityBindings(c)));
   for(const bad of [4,false,{},'bad'])assert.throws(()=>validateConfig({device:'washing_machine',entity:bad}));
 });

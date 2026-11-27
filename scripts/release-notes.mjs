@@ -7,7 +7,8 @@ const {version}=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'
 const log=fs.readFileSync(path.join(root,'CHANGELOG.md'),'utf8');
 const section=log.split('## '+version+'\n')[1]?.split('\n## ')[0]?.trim();
 if(!section)throw new Error('Missing release notes');
-const bundle=fs.readFileSync(path.join(root,'dist/soft-home-card.js'));
-fs.writeFileSync(path.join(root,'dist/SHA256SUMS'),createHash('sha256').update(bundle).digest('hex')+'  soft-home-card.js\n');
+const checksums=['soft-home-card.js','soft-home-more-info.js'].map(name=>createHash('sha256').update(fs.readFileSync(path.join(root,'dist',name))).digest('hex')+'  '+name+'\n').join('');
+fs.writeFileSync(path.join(root,'dist/SHA256SUMS'),checksums);
 const notes=section+'\n\n## 安装与更新\n\n推荐通过 HACS 自定义仓库安装：仓库 https://github.com/maycode0-0/soft-home-card ，类型 Dashboard。已安装用户在 HACS 中更新后刷新仪表盘。\n\n手动安装可下载本版本的 soft-home-card.js，按 README 注册资源。\n';
-if(process.argv[2])fs.writeFileSync(process.argv[2],notes);else process.stdout.write(notes);
+const completeNotes=notes+'\n可选的全局设备详情扩展请下载 soft-home-more-info.js，通过 frontend.extra_module_url 安装；配置和兼容范围见 docs/more-info.md。\n';
+if(process.argv[2])fs.writeFileSync(process.argv[2],completeNotes);else process.stdout.write(completeNotes);

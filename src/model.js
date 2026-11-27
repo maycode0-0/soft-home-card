@@ -15,10 +15,13 @@ export const DEVICES = {
   curtain: ['窗帘','mdi:curtains','blue'], door_lock: ['门锁','mdi:lock-outline','blue'],
   vacuum: ['扫地机器人','mdi:robot-vacuum','blue'], camera: ['摄像头','mdi:cctv','blue'],
 };
+export const ONVIF_PTZ_MODES = {ContinuousMove:'连续移动（点按）',RelativeMove:'相对移动',off:'关闭'};
 export const DOMAIN = id => String(id || '').split('.')[0];
 export const clamp = (value,min,max) => Math.min(max,Math.max(min,value));
 export const number = value => value === null || value === undefined || (typeof value === 'string' && !value.trim()) || typeof value === 'boolean' || !['number','string'].includes(typeof value) || !Number.isFinite(Number(value)) ? null : Number(value);
 export const available = state => !!state && !['unknown','unavailable'].includes(state.state);
+// A button reports its last press timestamp; unknown can mean never pressed.
+export const actionAvailable = state => available(state) || !!state && state.state==='unknown' && ['button','input_button'].includes(DOMAIN(state.entity_id));
 export const feature = (state,bit) => ((Number(state?.attributes?.supported_features) || 0) & bit) === bit;
 export const hasService = (hass,domain,service) => !!hass?.services?.[domain]?.[service];
 export const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -28,9 +31,10 @@ const stateLabels = { on:'已开启',off:'已关闭',idle:'待机',standby:'待�
 export function validateConfig(config) {
   if (!config || !DEVICES[config.device]) throw new Error('请选择有效的 device 设备类型。');
   if (config.entity != null && (typeof config.entity !== 'string' || config.entity !== '' && !entityPattern.test(config.entity))) throw new Error('请选择主实体 entity，例如 light.living_room。');
-  const c = {theme:'light',show_stats:true,read_only:false,...config};
+  const c = {theme:'light',show_stats:true,read_only:false,compact:true,...config};
   if (!['light','dark','auto'].includes(c.theme)) throw new Error('theme 必须为 light、dark 或 auto。');
   if (c.accent && !['blue','warm'].includes(c.accent)) throw new Error('accent 必须为 blue 或 warm。');
+  if(c.onvif_ptz!=null&&(typeof c.onvif_ptz!=='string'||!Object.hasOwn(ONVIF_PTZ_MODES,c.onvif_ptz)))throw new Error('onvif_ptz 必须为 ContinuousMove、RelativeMove 或 off。');
   if(c.washer!=null){
     if(typeof c.washer!=='object'||Array.isArray(c.washer))throw new Error('washer 必须为实体绑定对象。');
     for(const [key,id] of Object.entries(c.washer))if(!Object.hasOwn(WASHER_FIELDS,key)||typeof id!=='string'||!entityPattern.test(id))throw new Error(`washer.${key} 不是有效的洗衣机实体绑定。`);
@@ -46,7 +50,7 @@ export function validateConfig(config) {
     if (c[field] && !entityPattern.test(c[field])) throw new Error(`${field} 不是有效实体 ID。`);
   }
   for (const field of ['name','room','primary_attribute','primary_label','primary_unit','device_id','entity_group']) if (c[field] != null && typeof c[field] !== 'string') throw new Error(`${field} 必须为文本。`);
-  for (const field of ['read_only','show_stats','invert_position']) if (c[field] != null && typeof c[field] !== 'boolean') throw new Error(`${field} 必须为布尔值。`);
+  for (const field of ['read_only','show_stats','invert_position','compact']) if (c[field] != null && typeof c[field] !== 'boolean') throw new Error(`${field} 必须为布尔值。`);
   for (const field of ['metrics','auxiliary','actions']) if (c[field] != null && (!Array.isArray(c[field]) || c[field].length > 3)) throw new Error(`${field} 最多支持 3 项。`);
   for (const item of [...(c.metrics || []),...(c.auxiliary || [])]) {
     if (!item || !entityPattern.test(item.entity || '')) throw new Error('辅助实体和概览指标必须包含有效 entity。');
@@ -121,7 +125,7 @@ function autoPrimary(hass,c,state) {
 
 export function capabilities(hass,c,state) {
   const a = state?.attributes || {}, domain = DOMAIN(c.entity);
-  const allowed = available(state) && hass?.connected !== false && !c.read_only;
+  const allowed = actionAvailable(state) && hass?.connected !== false && !c.read_only;
   const can = service => allowed && hasService(hass,domain,service);
   const modes = a.supported_color_modes || [];
   const caps = {domain,allowed,controls:[],power:null};
@@ -152,7 +156,21 @@ export function capabilities(hass,c,state) {
     if (buttons.length) caps.controls.push({id:'motion',kind:'buttons',buttons});
     if (feature(state,4) && can('set_cover_position') && number(a.current_position)!==null) caps.controls.push({id:'position',kind:'range',label:c.invert_position?'展开程度':'开启程度',min:0,max:100,step:1,value:c.invert_position?100-a.current_position:a.current_position,unit:'%',service:'set_cover_position'});
   }
-  if (domain==='media_player' && feature(state,4) && can('volume_set') && number(a.volume_level)!==null) caps.controls.push({id:'volume',kind:'range',label:'音量',min:0,max:100,step:1,value:Math.round(a.volume_level*100),unit:'%',service:'volume_set'});
+  if (domain==='media_player') {
+    const mediaCan=service=>!['off','standby'].includes(state?.state)&&can(service);
+    const playing=['playing','buffering'].includes(state?.state);
+    const transport=[['media_previous_track',16,'上一首'],playing?['media_pause',1,'暂停']:['media_play',16384,'播放'],['media_next_track',32,'下一首'],['media_stop',4096,'停止播放']]
+      .filter(([service,bit])=>feature(state,bit)&&mediaCan(service)).map(([service,,label])=>({id:service,service,label}));
+    if(transport.length)caps.controls.push({id:'media_transport',kind:'buttons',buttons:transport});
+    if(feature(state,4)&&can('volume_set')&&number(a.volume_level)!==null)caps.controls.push({id:'volume',kind:'range',label:'音量',min:0,max:100,step:1,value:Math.round(a.volume_level*100),unit:'%',service:'volume_set'});
+    const sound=[];
+    if(feature(state,1024))for(const [service,label] of [['volume_down','减小音量'],['volume_up','增大音量']])if(mediaCan(service))sound.push({id:service,service,label});
+    if(feature(state,8)&&mediaCan('volume_mute')&&typeof a.is_volume_muted==='boolean')sound.push({id:'media_mute',service:'volume_mute',label:a.is_volume_muted?'取消静音':'静音',data:{is_volume_muted:!a.is_volume_muted}});
+    if(sound.length)caps.controls.push({id:'media_sound',kind:'buttons',buttons:sound});
+    if(feature(state,2048)&&mediaCan('select_source')&&Array.isArray(a.source_list)&&a.source_list.length)caps.controls.push({id:'media_source',kind:'select',label:'输入源',options:a.source_list,value:a.source||'',service:'select_source'});
+    const duration=number(a.media_duration),position=number(a.media_position);
+    if(feature(state,2)&&mediaCan('media_seek')&&duration>0&&position!==null)caps.controls.push({id:'media_seek',kind:'range',label:'播放进度',min:0,max:duration,step:1,value:clamp(position,0,duration),unit:'秒',service:'media_seek'});
+  }
   if (domain==='fan' && feature(state,1) && can('set_percentage') && number(a.percentage)!==null) caps.controls.push({id:'percentage',kind:'range',label:'风速',min:0,max:100,step:number(a.percentage_step)||1,value:a.percentage,unit:'%',service:'set_percentage'});
   if (['number','input_number'].includes(domain) && can('set_value') && number(state.state)!==null && number(a.min)!==null && number(a.max)>number(a.min)) caps.controls.push({id:'number',kind:'range',label:'设定值',min:Number(a.min),max:Number(a.max),step:number(a.step)||1,value:Number(state.state),unit:a.unit_of_measurement||'',service:'set_value'});
   if (['select','input_select'].includes(domain) && Array.isArray(a.options) && can('select_option')) caps.controls.push({id:'option',kind:'select',label:'选项',options:a.options,value:state.state,service:'select_option'});
@@ -183,7 +201,7 @@ function defaultMetrics(hass,c,state) {
 }
 
 export function buildView(hass,c) {
-  const state=hass?.states?.[c.entity],a=state?.attributes||{},online=available(state)&&hass?.connected!==false;
+  const state=hass?.states?.[c.entity],a=state?.attributes||{},online=actionAvailable(state)&&hass?.connected!==false;
   let primary=autoPrimary(hass,c,state);
   if(c.primary_entity || c.primary_attribute){const m=readMetric(hass,{entity:c.primary_entity||c.entity,attribute:c.primary_attribute,name:c.primary_label,unit:c.primary_unit});primary={text:m.text,unit:m.unit,number:m.number,label:c.primary_label||m.name,ratio:m.unit==='%'&&m.number!==null?m.number/100:null};}
   primary.label=c.primary_label||primary.label;
@@ -199,7 +217,7 @@ export function buildView(hass,c) {
     secondary:c.secondary_entity?readMetric(hass,{entity:c.secondary_entity}):null,
     power:c.power_entity?readMetric(hass,{entity:c.power_entity,name:'当前功率'}):null,
     summary:c.read_only?'只读模式':!online?'请检查实体和连接':state.state==='off'?status:a.hvac_action ? (stateLabels[a.hvac_action]||a.hvac_action) : status,
-    auxiliary:(c.auxiliary||[]).map(ref=>{const s=hass?.states?.[ref.entity];return {...ref,name:ref.name||s?.attributes?.friendly_name||ref.entity,state:formattedState(hass,s),disabled:!online||c.read_only||!available(s),on:s?.state==='on'};})};
+    auxiliary:(c.auxiliary||[]).map(ref=>{const s=hass?.states?.[ref.entity];return {...ref,name:ref.name||s?.attributes?.friendly_name||ref.entity,state:formattedState(hass,s),disabled:!online||c.read_only||!actionAvailable(s),on:s?.state==='on'};})};
 }
 
 // Re-evaluate capabilities at the instant of a click, so stale UI cannot send a stale command.
@@ -211,7 +229,7 @@ export function commandFor(hass,c,id,input) {
   else {
     const control=caps.controls.find(x=>x.id===id);
     const button=caps.controls.flatMap(x=>x.buttons||[]).find(x=>x.id===id);
-    if(button)service=button.service;
+    if(button){service=button.service;data={...(button.data||{})};}
     else if(control){
       service=control.service;
       if(control.kind==='color'){
@@ -219,7 +237,7 @@ export function commandFor(hass,c,id,input) {
         data={rgb_color:[1,3,5].map(offset=>parseInt(input.slice(offset,offset+2),16))};
       }else if(control.kind==='select'){
         if(!control.options.includes(input))throw new Error('不支持该选项。');
-        data={[id==='mode'?(caps.domain==='climate'?'hvac_mode':'operation_mode'):['fan_mode','swing_mode','fan_speed'].includes(id)?id:'option']:input};
+        data={[id==='mode'?(caps.domain==='climate'?'hvac_mode':'operation_mode'):id==='media_source'?'source':['fan_mode','swing_mode','fan_speed'].includes(id)?id:'option']:input};
       }else{
         const raw=number(input);if(raw===null)throw new Error('无效数值。');
         const step=control.step || 1;
@@ -229,6 +247,7 @@ export function commandFor(hass,c,id,input) {
         if(id==='temperature')data={temperature:value};
         if(id==='position')data={position:c.invert_position?100-value:value};
         if(id==='volume')data={volume_level:value/100};
+        if(id==='media_seek')data={seek_position:value};
         if(id==='percentage')data={percentage:value};
         if(id==='number')data={value};
       }
@@ -240,7 +259,7 @@ export function commandFor(hass,c,id,input) {
 
 export function auxiliaryCommand(hass,c,index) {
   const ref=c.auxiliary?.[index],state=hass?.states?.[ref?.entity],domain=DOMAIN(ref?.entity);
-  if(c.read_only || hass?.connected===false || !available(hass?.states?.[c.entity]) || !available(state))throw new Error('辅助实体不可操作。');
+  if(c.read_only || hass?.connected===false || !available(hass?.states?.[c.entity]) || !actionAvailable(state))throw new Error('辅助实体不可操作。');
   let service;
   if(['switch','input_boolean','light','fan'].includes(domain))service=state.state==='off'?'turn_on':'turn_off';
   if(['button','input_button'].includes(domain))service='press';

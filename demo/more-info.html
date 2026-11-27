@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Soft Home · 全局设备详情</title>
+  <link rel="stylesheet" href="/demo/home.css">
+  <style>
+    .entry-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:24px 0 36px}.entry{display:flex;align-items:center;gap:12px;min-height:90px;text-align:left;padding:18px;border:1px solid var(--panel);border-radius:20px;box-shadow:var(--shadow);background:var(--panel);font-size:14px}.entry ha-icon{color:var(--blue);--mdc-icon-size:25px}.entry span{flex:1}.entry small{display:block;color:var(--muted);font-size:10px;margin-top:5px}.section-tabs{display:flex;gap:10px;margin-top:26px}.section-tabs button{min-height:44px;padding:9px 18px;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:18px}.section-tabs button[aria-pressed=true]{background:var(--panel);color:var(--blue)}.scope-note{font-size:12px;color:var(--muted);line-height:1.9;max-width:780px}.native-log{border:1px solid var(--line);border-radius:16px;padding:16px;font-size:12px;background:var(--panel);color:var(--muted);margin:24px 0}.settings-list{display:grid;gap:10px;max-width:680px;margin:24px 0 36px}.settings-list .entry{min-height:75px}.entry:focus-visible{outline:3px solid var(--blue);outline-offset:3px}@media(max-width:700px){.entry-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.entry{padding:14px;font-size:12px}.entry small{font-size:9px}.entry ha-icon{--mdc-icon-size:21px}}@media(max-width:400px){.entry-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <home-assistant>
+    <div class="shell">
+      <header class="topbar"><a class="brand" href="/demo/theme.html"><span class="brand-icon"><ha-icon icon="mdi:home-outline" aria-hidden="true"></ha-icon></span><span>SOFT HOME<small>全局设备详情</small></span></a><nav><a href="/docs/more-info.md">安装说明 ↗</a><button id="theme" aria-pressed="false">切换深色</button></nav></header>
+      <main>
+        <section class="welcome"><div><p class="eyebrow">EVERY DEVICE, A SOFTER VIEW</p><h1>设备详情<span>，</span>也柔和一点。</h1><p class="intro">从不同页面打开，都是熟悉的 Soft Home。</p></div></section>
+        <p class="scope-note">这里模拟 HA 的标准详情事件和弹窗管理器。点击任意设备，体验实际扩展中的弹窗；所有操作只更新本地示例。真实 HA 的全局入口需要通过 extra_module_url 安装。</p>
+        <nav class="section-tabs" aria-label="模拟页面"><button data-page="dashboard" aria-pressed="true">仪表盘入口</button><button data-page="settings" aria-pressed="false">设置与实体列表入口</button></nav>
+        <section data-content="dashboard" aria-label="仪表盘示例"><div class="entry-grid">
+          <button class="entry" data-entity="climate.ac"><ha-icon icon="mdi:snowflake" aria-hidden="true"></ha-icon><span>主卧中央空调<small>温度 · 模式 · 风速 · 预设</small></span>↗</button>
+          <button class="entry" data-entity="light.wall"><ha-icon icon="mdi:lightbulb-outline" aria-hidden="true"></ha-icon><span>卧室壁灯<small>亮度 · 色温 · 开关</small></span>↗</button>
+          <button class="entry" data-entity="light.main"><ha-icon icon="mdi:lightbulb-outline" aria-hidden="true"></ha-icon><span>客厅主灯<small>多灯头大吊灯 · 亮度与色温</small></span>↗</button>
+          <button class="entry" data-entity="cover.curtain"><ha-icon icon="mdi:curtains" aria-hidden="true"></ha-icon><span>客厅窗帘<small>行程 · 打开 · 停止 · 关闭</small></span>↗</button>
+          <button class="entry" data-entity="vacuum.robot"><ha-icon icon="mdi:robot-vacuum" aria-hidden="true"></ha-icon><span>扫地机器人<small>启停 · 回充 · 吸力</small></span>↗</button>
+          <button class="entry" data-entity="sensor.temperature"><ha-icon icon="mdi:thermometer" aria-hidden="true"></ha-icon><span>室内温度<small>实时读数 · 温度变化曲线</small></span>↗</button>
+          <button class="entry" data-entity="sensor.humidity"><ha-icon icon="mdi:water-outline" aria-hidden="true"></ha-icon><span>相对湿度<small>实时读数 · 湿度变化曲线</small></span>↗</button>
+          <button class="entry" data-entity="switch.vent"><ha-icon icon="mdi:weather-windy" aria-hidden="true"></ha-icon><span>浴室换气<small>通用实体 · 开关</small></span>↗</button>
+          <button class="entry" data-entity="media_player.music"><ha-icon icon="mdi:play" aria-hidden="true"></ha-icon><span>音乐播放器<small>播放 · 暂停 · 上一首 · 下一首</small></span>↗</button>
+          <button class="entry" data-entity="sensor.door_lock_unlock_event"><ha-icon icon="mdi:key-outline" aria-hidden="true"></ha-icon><span>开锁事件<small>当前为“无” · 历史与活动仍保留</small></span>↗</button>
+          <button class="entry" data-entity="event.door_lock_unlock"><ha-icon icon="mdi:history" aria-hidden="true"></ha-icon><span>门锁事件实体<small>事件类型 · 历史 · 活动</small></span>↗</button>
+          <button class="entry" data-entity="lock.washer_child_lock"><ha-icon icon="mdi:lock-outline" aria-hidden="true"></ha-icon><span>洗衣机童锁<small>设备按键保护 · 开启／关闭童锁</small></span>↗</button>
+          <button class="entry" data-entity="lock.front_door"><ha-icon icon="mdi:door-closed" aria-hidden="true"></ha-icon><span>入户门锁<small>真实门锁 · 上锁／解锁</small></span>↗</button>
+        </div></section>
+        <section data-content="settings" aria-label="设置实体列表示例" hidden><div class="settings-list">
+          <button class="entry" data-entity="climate.ac"><ha-icon icon="mdi:snowflake" aria-hidden="true"></ha-icon><span>主卧中央空调<small>climate.ac · 设置页面打开同一实体</small></span>↗</button>
+          <button class="entry" data-entity="number.washer_rinse_count"><ha-icon icon="mdi:tune-variant" aria-hidden="true"></ha-icon><span>漂洗次数<small>number.washer_rinse_count · 通用数值控制</small></span>↗</button>
+          <button class="entry" data-entity="alarm_control_panel.home"><ha-icon icon="mdi:shield-check-outline" aria-hidden="true"></ha-icon><span>安防主机<small>特殊类型保留 HA 原生详情</small></span>↗</button>
+        </div></section>
+        <p class="native-log" id="native-log" role="status" hidden></p>
+      </main>
+      <footer><span>SOFT HOME · GLOBAL DETAILS</span><p>扩展采用 HA 的详情事件与弹窗接口。此页为本地接口模拟，不连接真实 HA。</p></footer>
+    </div>
+  </home-assistant>
+  <script src="/dist/soft-home-more-info.js"></script>
+  <script type="module" src="/demo/more-info.js"></script>
+</body>
+</html>

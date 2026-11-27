@@ -48,6 +48,9 @@ test('reject malformed config, preserve optional UI settings',()=>{
   assert.throws(()=>cfg('wall_light','light.test',{metrics:[{entity:'sensor.test',precision:-1}]}));
   assert.throws(()=>cfg('wall_light','light.test',{actions:[{label:'Bad',action:'perform-action',perform_action:'turn_on'}]}));
   assert.equal(cfg('wall_light','light.test',{grid_options:{columns:12}}).grid_options.columns,12);
+  assert.equal(cfg('wall_light','light.test').compact,true);
+  assert.equal(cfg('wall_light','light.test',{compact:false}).compact,false);
+  assert.throws(()=>cfg('wall_light','light.test',{compact:'false'}));
 });
 test('numeric conversion does not turn unknown values into zero',()=>{
   for(const input of [null,undefined,'','  ',[],true,'unknown',NaN,Infinity])assert.equal(number(input),null);
@@ -100,6 +103,15 @@ test('missing, offline, unknown, disconnected and read-only disable writes',()=>
   assert.throws(()=>commandFor(h,{...c,read_only:true},'power'));
   h.connected=false;assert.throws(()=>commandFor(h,c,'brightness',50));
 });
+test('primary buttons can be pressed before they report a first press',()=>{
+  for(const domain of ['button','input_button']){
+    const entity=domain+'.test',c=cfg('projector',entity),h=hass({[entity]:state(entity,'unknown')},{[domain]:{press:{}}});
+    assert.equal(buildView(h,c).online,true);
+    assert.deepEqual(commandFor(h,c,'press'),{domain,service:'press',data:{},target:{entity_id:entity}});
+    h.states[entity].state='unavailable';
+    assert.throws(()=>commandFor(h,c,'press'));
+  }
+});
 test('remaining-time sensor and zero-valued power are represented honestly',()=>{
   const h=hass({'sensor.washer':state('sensor.washer','running'),'sensor.remaining':state('sensor.remaining','27',{unit_of_measurement:'min'}),'sensor.power':state('sensor.power','0',{unit_of_measurement:'W'}),'sensor.progress':state('sensor.progress','67')});
   const v=buildView(h,cfg('washing_machine','sensor.washer',{primary_entity:'sensor.remaining',primary_label:'剩余时间',power_entity:'sensor.power',progress_entity:'sensor.progress'}));
@@ -120,6 +132,59 @@ test('water heater uses operation_mode field and media volume maps to 0–1',()=
   const h=hass({'water_heater.test':state('water_heater.test','eco',{supported_features:3,min_temp:35,max_temp:75,temperature:55,operation_list:['eco','performance'],operation_mode:'eco'}),'media_player.test':state('media_player.test','playing',{supported_features:4,volume_level:.35})},services);
   assert.deepEqual(commandFor(h,cfg('water_heater','water_heater.test'),'mode','performance').data,{operation_mode:'performance'});
   assert.deepEqual(commandFor(h,cfg('projector','media_player.test'),'volume',55).data,{volume_level:.55});
+});
+
+const musicFixture=(value='paused',attributes={})=>{
+  const id='media_player.music';
+  const mediaServices=Object.fromEntries(['media_play','media_pause','media_previous_track','media_next_track','media_stop','volume_mute','volume_set','volume_down','volume_up','media_seek','select_source'].map(name=>[name,{}]));
+  return {h:hass({[id]:state(id,value,{supported_features:16447,device_class:'speaker',...attributes})},{media_player:mediaServices}),c:cfg('projector',id)};
+};
+
+test('paused music with the reported 16447 features has transport buttons without volume readings',()=>{
+  const {h,c}=musicFixture(),caps=capabilities(h,c,h.states[c.entity]);
+  assert.deepEqual(caps.controls.flatMap(control=>control.buttons||[]).map(button=>button.id),['media_previous_track','media_play','media_next_track']);
+  assert.equal(caps.controls.some(control=>control.id==='volume'),false);
+  assert.equal(caps.power,null);
+  for(const id of ['media_play','media_previous_track','media_next_track'])assert.deepEqual(commandFor(h,c,id),{domain:'media_player',service:id,data:{},target:{entity_id:'media_player.music'}});
+});
+
+test('play and pause follow current playback state and stale transport actions are rechecked',()=>{
+  const {h,c}=musicFixture();
+  h.states[c.entity].state='playing';
+  assert.equal(commandFor(h,c,'media_pause').service,'media_pause');
+  assert.throws(()=>commandFor(h,c,'media_play'));
+  h.states[c.entity].state='paused';
+  assert.throws(()=>commandFor(h,c,'media_pause'));
+  delete h.services.media_player.media_play;
+  assert.throws(()=>commandFor(h,c,'media_play'));
+  h.states[c.entity].attributes.supported_features=0;
+  assert.throws(()=>commandFor(h,c,'media_next_track'));
+});
+
+test('media commands cannot operate offline, disconnected, read-only or powered-off players',()=>{
+  for(const change of [(h,c)=>{h.states[c.entity].state='unavailable';},(h,c)=>{h.states[c.entity].state='unknown';},h=>{h.connected=false;},(h,c)=>{c.read_only=true;},(h,c)=>{h.states[c.entity].state='off';}]){
+    const {h,c}=musicFixture();change(h,c);
+    assert.equal(capabilities(h,c,h.states[c.entity]).controls.flatMap(control=>control.buttons||[]).length,0);
+    assert.throws(()=>commandFor(h,c,'media_play'));
+  }
+});
+
+test('media optional controls honor advertised capabilities and send correctly named service data',()=>{
+  const {h,c}=musicFixture('playing',{supported_features:16447|1024|2048|4096,volume_level:.35,is_volume_muted:false,media_duration:240,media_position:40,source:'音乐',source_list:['音乐','蓝牙']});
+  assert.deepEqual(commandFor(h,c,'media_stop').data,{});
+  assert.deepEqual(commandFor(h,c,'media_mute').data,{is_volume_muted:true});
+  h.states[c.entity].attributes.is_volume_muted=true;
+  assert.deepEqual(commandFor(h,c,'media_mute').data,{is_volume_muted:false});
+  assert.equal(commandFor(h,c,'volume_up').service,'volume_up');
+  assert.deepEqual(commandFor(h,c,'media_source','蓝牙').data,{source:'蓝牙'});
+  assert.throws(()=>commandFor(h,c,'media_source','不存在的来源'));
+  assert.deepEqual(commandFor(h,c,'media_seek',500).data,{seek_position:240});
+  assert.deepEqual(commandFor(h,c,'media_seek',42.7).data,{seek_position:43});
+  assert.throws(()=>commandFor(h,c,'media_seek',''));
+  delete h.states[c.entity].attributes.media_duration;
+  assert.throws(()=>commandFor(h,c,'media_seek',20));
+  delete h.states[c.entity].attributes.source_list;
+  assert.throws(()=>commandFor(h,c,'media_source','音乐'));
 });
 test('user/device text is escaped at HTML boundaries',()=>assert.equal(escapeHTML('<img src=x onerror="alert(1)">'), '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;'));
 test('overview attributes use readable labels and off climate does not show stale heating',()=>{

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Soft Home · 家里的此刻</title>
+  <link rel="stylesheet" href="/demo/home.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="/demo/home.html"><span class="brand-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m3 11 9-8 9 8M5 10v11h5v-7h4v7h5V10"/></svg></span><span>SOFT HOME<small>柔光 · 智能生活</small></span></a>
+      <nav aria-label="预览导航"><a href="/demo/redesign.html">功能展示</a><a href="/demo/index.html">全部 23 种卡片 <span aria-hidden="true">↗</span></a><button id="theme" aria-label="切换到深色主题" aria-pressed="false"><ha-icon icon="mdi:weather-night" aria-hidden="true"></ha-icon><span>深色</span></button></nav>
+    </header>
+    <main>
+      <section class="welcome" aria-labelledby="page-title">
+        <div><p class="eyebrow">MY HOME / 我的家</p><h1 id="page-title">家里的此刻<span>，</span></h1><p class="intro">光线、温度与日常，一切触手可及。</p></div>
+        <div class="snapshot"><span class="snapshot-dot"></span><span>11 月 2 日 · 状态快照<small id="snapshot-label">基于 Home Assistant 设备状态</small></span></div>
+      </section>
+      <section class="home-overview" aria-label="家庭概览">
+        <div class="temperature-summary"><div class="summary-icon"><ha-icon icon="mdi:home-outline" aria-hidden="true"></ha-icon></div><div><span class="summary-label">客厅 · 室内温度</span><strong>22<small>°C</small></strong></div><div class="humidity"><ha-icon icon="mdi:water-outline" aria-hidden="true"></ha-icon><span>相对湿度<strong>59<small>%</small></strong></span></div></div>
+        <div class="summary-stat"><ha-icon icon="mdi:snowflake" aria-hidden="true"></ha-icon><span class="summary-label">全屋空调</span><strong id="climate-summary">5 台已关闭</strong><small>按需开启，舒适刚好</small></div>
+        <div class="summary-stat"><ha-icon icon="mdi:curtains" aria-hidden="true"></ha-icon><span class="summary-label">客厅窗帘</span><strong id="curtain-summary">100% 已打开</strong><small>自然光，照进日常</small></div>
+        <button class="summary-stat attention" id="attention" aria-pressed="false"><ha-icon icon="mdi:alert-circle-outline" aria-hidden="true"></ha-icon><span class="summary-label">需要留意</span><strong>2 台离线 <span aria-hidden="true">↗</span></strong><small>另有 1 台状态未知</small></button>
+      </section>
+      <section class="devices-section" aria-labelledby="devices-title">
+        <div class="section-heading"><div><h2 id="devices-title">设备与空间</h2><span id="device-count" aria-live="polite"></span></div><div class="preview-actions"><button id="running" aria-pressed="false"><ha-icon icon="mdi:play" aria-hidden="true"></ha-icon><span>演示运行</span></button><button id="readonly" aria-pressed="false"><ha-icon icon="mdi:eye-outline" aria-hidden="true"></ha-icon>只读预览</button></div></div>
+        <nav id="rooms" class="rooms" aria-label="按房间筛选"></nav>
+        <div id="gallery" class="gallery"></div>
+      </section>
+    </main>
+    <footer><span>SOFT HOME <i></i> 让设备，融入生活。</span><p>本地交互预览 · 状态来自 2026-11-02 的 MCP 快照，实体与控制能力为演示配置。操作只更新本页。</p></footer>
+  </div>
+  <div id="notice" role="status" hidden></div>
+  <script src="/dist/soft-home-card.js"></script>
+  <script type="module" src="/demo/home.js"></script>
+</body>
+</html>

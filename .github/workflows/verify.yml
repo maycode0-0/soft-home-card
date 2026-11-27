@@ -22,10 +22,11 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run build
       - run: npm run check
-      - run: git diff --exit-code -- dist/soft-home-card.js
+      - run: git diff --exit-code -- dist/soft-home-card.js dist/soft-home-more-info.js
       - run: npm test
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
+      - run: npm run test:more-info
       - name: Save browser evidence
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
